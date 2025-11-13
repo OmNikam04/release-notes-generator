@@ -38,9 +38,16 @@ func main() {
 		log.Fatalf("❌ Failed to connect to database: %v", err)
 	}
 
-	// Run database migrations
-	if err := db.RunMigrations(database); err != nil {
-		// 	log.Fatalf("❌ Failed to run migrations: %v", err)
+	// Run database migrations (only if RUN_MIGRATIONS=true)
+	runMigrations := os.Getenv("RUN_MIGRATIONS")
+	if runMigrations == "true" {
+		appLogger.Info().Msg("🔄 Running database migrations...")
+		if err := db.RunMigrations(database); err != nil {
+			log.Fatalf("❌ Failed to run migrations: %v", err)
+		}
+		appLogger.Info().Msg("✅ Database migrations completed successfully")
+	} else {
+		appLogger.Info().Msg("⏭️  Skipping migrations (RUN_MIGRATIONS not set to 'true')")
 	}
 
 	// Initialize Bugsby client
@@ -64,7 +71,7 @@ func main() {
 
 	// Initialize handlers (pass config for JWT)
 	userHandler := handlers.NewUserHandler(userService, cfg)
-	bugHandler := handlers.NewBugHandler(bugsbySyncService, bugRepo)
+	bugHandler := handlers.NewBugHandler(bugsbySyncService, bugRepo, bugsbyClient)
 
 	// Create handlers struct for routing
 	routeHandlers := &routes.Handlers{

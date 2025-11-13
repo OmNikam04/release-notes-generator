@@ -4,34 +4,69 @@ import "time"
 
 // BugsbyResponse represents the standard response from Bugsby API
 type BugsbyResponse struct {
-	Bugs  []BugsbyBug `json:"bugs"`
-	Count int         `json:"count,omitempty"`
-	Total int         `json:"total,omitempty"`
+	Bugs     []BugsbyBug    `json:"bugs"`
+	Count    int            `json:"count,omitempty"`
+	Total    int            `json:"total,omitempty"`
+	Metadata BugsbyMetadata `json:"metadata,omitempty"`
+}
+
+// BugsbyMetadata represents pagination metadata from Bugsby API
+type BugsbyMetadata struct {
+	HasNext bool `json:"hasNext"`
+	Links   struct {
+		Next string `json:"next"`
+	} `json:"links"`
+	Cursor int `json:"cursor"`
 }
 
 // BugsbyBug represents a bug from the Bugsby API
-// This structure should match the actual Bugsby API response
+// This structure matches the actual Bugsby v3 API response
 type BugsbyBug struct {
-	ID          int       `json:"id"`
-	Title       string    `json:"title"`
-	Description string    `json:"description"`
-	Severity    string    `json:"severity"`
-	Priority    string    `json:"priority"`
-	Status      string    `json:"status"`
-	BugType     string    `json:"bug_type"`
-	CVE         string    `json:"cve,omitempty"`
-	AssignedTo  string    `json:"assigned_to,omitempty"`
-	Manager     string    `json:"manager,omitempty"`
-	Release     string    `json:"release"`
-	Component   string    `json:"component"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
-	
-	// Additional fields that might be in Bugsby response
-	// Add more fields as you discover them from the actual API
-	URL         string   `json:"url,omitempty"`
-	Labels      []string `json:"labels,omitempty"`
-	Tags        []string `json:"tags,omitempty"`
+	ID                  int        `json:"id"`
+	Alias               *string    `json:"alias"`
+	ReportedBy          string     `json:"reportedBy"`
+	ReportedTime        time.Time  `json:"reportedTime"`
+	LastUpdateTime      time.Time  `json:"lastUpdateTime"`
+	LastOpenedTime      time.Time  `json:"lastOpenedTime"`
+	LastClosedTime      *time.Time `json:"lastClosedTime"`
+	LastDiffed          time.Time  `json:"lastDiffed"`
+	Package             string     `json:"package"`
+	IssueType           string     `json:"issueType"`
+	Product             string     `json:"product"`
+	Component           string     `json:"component"`
+	Deadline            *time.Time `json:"deadline"`
+	Version             string     `json:"version"`
+	ScheduleKey         *string    `json:"scheduleKey"`
+	Priority            string     `json:"priority"`
+	Severity            string     `json:"severity"`
+	Title               string     `json:"title"`
+	Assignee            string     `json:"assignee"`
+	Status              string     `json:"status"`
+	Resolution          string     `json:"resolution"`
+	FixList             []string   `json:"fixList"`
+	FixListGerrit       []string   `json:"fixListGerrit"`
+	MultiRepoFixList    []string   `json:"multiRepoFixList"`
+	ReviewList          []string   `json:"reviewList"`
+	FixListReviewboard  *string    `json:"fixListReviewboard"`
+	TargetMilestone     string     `json:"targetMilestone"`
+	ReleaseNote         *string    `json:"releaseNote"`
+	ReleaseNoteApproval *bool      `json:"releaseNoteApproval"`
+	Description         string     `json:"description"`
+	EstimatedTime       float64    `json:"estimatedTime"`
+	RemainingTime       float64    `json:"remainingTime"`
+	Blocks              []int      `json:"blocks"`
+	DependsOn           []int      `json:"dependsOn"`
+	Supersedes          []int      `json:"supersedes"`
+	SupersededBys       []int      `json:"supersededBys"`
+	DuplicateOf         *int       `json:"duplicateOf"`
+	DuplicatedBys       []int      `json:"duplicatedBys"`
+	VersionsFixed       []string   `json:"versionsFixed"`
+	VersionsIntroduced  []string   `json:"versionsIntroduced"`
+	AffectedCategories  []int      `json:"affectedCategories"`
+	AffectedPlatforms   []string   `json:"affectedPlatforms"`
+	Watchers            []string   `json:"watchers"`
+	ChainHead           *int       `json:"chainHead"`
+	Chain               []int      `json:"chain"`
 }
 
 // BugsbyQuery represents query parameters for Bugsby API
@@ -110,10 +145,9 @@ const (
 
 // RequestOptions represents options for making HTTP requests
 type RequestOptions struct {
-	Method  HTTPMethod
+	Method   HTTPMethod
 	Endpoint string
-	Params  map[string]string
-	Body    interface{}
-	Headers map[string]string
+	Params   map[string]string
+	Body     interface{}
+	Headers  map[string]string
 }
-

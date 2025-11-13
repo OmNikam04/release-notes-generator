@@ -136,12 +136,10 @@ func (s *bugsbySyncService) SyncBugByID(ctx context.Context, bugsbyID int) (*mod
 
 	// Extract emails and ensure users exist
 	emails := []string{}
-	if bugsbyBug.AssignedTo != "" {
-		emails = append(emails, bugsbyBug.AssignedTo)
+	if bugsbyBug.Assignee != "" {
+		emails = append(emails, bugsbyBug.Assignee)
 	}
-	if bugsbyBug.Manager != "" {
-		emails = append(emails, bugsbyBug.Manager)
-	}
+	// Note: Manager field doesn't exist in Bugsby v3 API
 
 	userEmailToIDMap, err := s.ensureUsersExist(emails)
 	if err != nil {

@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"encoding/json"
+	"fmt"
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
@@ -15,12 +17,14 @@ import (
 type BugHandler struct {
 	bugsbySyncService service.BugsbySyncService
 	bugRepository     repository.BugRepository
+	bugsbyClient      bugsby.Client
 }
 
-func NewBugHandler(bugsbySyncService service.BugsbySyncService, bugRepository repository.BugRepository) *BugHandler {
+func NewBugHandler(bugsbySyncService service.BugsbySyncService, bugRepository repository.BugRepository, bugsbyClient bugsby.Client) *BugHandler {
 	return &BugHandler{
 		bugsbySyncService: bugsbySyncService,
 		bugRepository:     bugRepository,
+		bugsbyClient:      bugsbyClient,
 	}
 }
 
@@ -325,5 +329,210 @@ func (h *BugHandler) DeleteBug(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(dto.SuccessResponse{
 		Success: true,
 		Message: "Bug deleted successfully",
+	})
+}
+
+// GetBugsByAssignee fetches bugs from Bugsby API for a specific assignee
+// GET /api/v1/bugsby/bugs/assignee/:email
+// Query params: limit, sortBy, order, cursor (all optional)
+func (h *BugHandler) GetBugsByAssignee(c *fiber.Ctx) error {
+	email := c.Params("email")
+	if email == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
+			Error:   "missing_email",
+			Message: "Email parameter is required",
+		})
+	}
+
+	// Build query parameters with full control
+	params := map[string]string{
+		"q":                     fmt.Sprintf("assignee==%s", email),
+		"limit":                 c.Query("limit", "100"),
+		"sortBy":                c.Query("sortBy", "id"),
+		"order":                 c.Query("order", "asc"),
+		"source":                c.Query("source", "mysql"),
+		"textQueryMode":         c.Query("textQueryMode", "default"),
+		"auxiliaryUserLimit":    c.Query("auxiliaryUserLimit", "200"),
+		"auxiliaryProductLimit": c.Query("auxiliaryProductLimit", "200"),
+		"auxiliaryPackageLimit": c.Query("auxiliaryPackageLimit", "200"),
+		"auxiliaryBugLimit":     c.Query("auxiliaryBugLimit", "200"),
+		"auxiliaryReleaseLimit": c.Query("auxiliaryReleaseLimit", "200"),
+		"auxiliaryBugTagLimit":  c.Query("auxiliaryBugTagLimit", "200"),
+	}
+
+	// Add cursor if provided (for pagination)
+	if cursor := c.Query("cursor"); cursor != "" {
+		params["cursor"] = cursor
+	}
+
+	logger.Info().
+		Str("email", email).
+		Str("limit", params["limit"]).
+		Str("sortBy", params["sortBy"]).
+		Msg("Fetching bugs from Bugsby API")
+
+	// Make GET request to Bugsby API
+	resp, err := h.bugsbyClient.Get(c.Context(), "bugs", params)
+	if err != nil {
+		logger.Error().Err(err).Str("email", email).Msg("Failed to fetch bugs from Bugsby")
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
+			Error:   "bugsby_fetch_failed",
+			Message: fmt.Sprintf("Failed to fetch bugs from Bugsby: %v", err),
+		})
+	}
+	defer resp.Body.Close()
+
+	// Parse Bugsby response
+	var bugsbyResp bugsby.BugsbyResponse
+	if err := json.NewDecoder(resp.Body).Decode(&bugsbyResp); err != nil {
+		logger.Error().Err(err).Msg("Failed to decode Bugsby response")
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
+			Error:   "decode_failed",
+			Message: "Failed to parse Bugsby response",
+		})
+	}
+
+	logger.Info().
+		Str("email", email).
+		Int("bugs_count", len(bugsbyResp.Bugs)).
+		Bool("has_next", bugsbyResp.Metadata.HasNext).
+		Msg("Successfully fetched bugs from Bugsby")
+
+	// Return response with metadata
+	return c.Status(fiber.StatusOK).JSON(dto.SuccessResponse{
+		Success: true,
+		Message: fmt.Sprintf("Found %d bugs for %s", len(bugsbyResp.Bugs), email),
+		Data: fiber.Map{
+			"bugs":      bugsbyResp.Bugs,
+			"count":     len(bugsbyResp.Bugs),
+			"has_next":  bugsbyResp.Metadata.HasNext,
+			"cursor":    bugsbyResp.Metadata.Cursor,
+			"next_link": bugsbyResp.Metadata.Links.Next,
+		},
+	})
+}
+
+// GetBugsByCustomQuery allows testing any Bugsby query
+// POST /api/v1/bugsby/bugs/query
+// Body: { "query": "assignee==john.doe@arista.com AND status==ASSIGNED", "limit": 50, ... }
+func (h *BugHandler) GetBugsByCustomQuery(c *fiber.Ctx) error {
+	var req struct {
+		Query                 string `json:"query" validate:"required"`
+		Limit                 string `json:"limit"`
+		SortBy                string `json:"sortBy"`
+		Order                 string `json:"order"`
+		Source                string `json:"source"`
+		TextQueryMode         string `json:"textQueryMode"`
+		AuxiliaryUserLimit    string `json:"auxiliaryUserLimit"`
+		AuxiliaryProductLimit string `json:"auxiliaryProductLimit"`
+		AuxiliaryPackageLimit string `json:"auxiliaryPackageLimit"`
+		AuxiliaryBugLimit     string `json:"auxiliaryBugLimit"`
+		AuxiliaryReleaseLimit string `json:"auxiliaryReleaseLimit"`
+		AuxiliaryBugTagLimit  string `json:"auxiliaryBugTagLimit"`
+		Cursor                string `json:"cursor"`
+	}
+
+	if err := c.BodyParser(&req); err != nil {
+		logger.Error().Err(err).Msg("Invalid request body")
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
+			Error:   "invalid_request",
+			Message: "Invalid request body",
+		})
+	}
+
+	// Validate request
+	if err := ValidateStruct(c, &req); err != nil {
+		return err
+	}
+
+	// Build query parameters with defaults
+	params := map[string]string{
+		"q": req.Query,
+	}
+
+	// Add optional parameters
+	if req.Limit != "" {
+		params["limit"] = req.Limit
+	} else {
+		params["limit"] = "100"
+	}
+	if req.SortBy != "" {
+		params["sortBy"] = req.SortBy
+	}
+	if req.Order != "" {
+		params["order"] = req.Order
+	}
+	if req.Source != "" {
+		params["source"] = req.Source
+	}
+	if req.TextQueryMode != "" {
+		params["textQueryMode"] = req.TextQueryMode
+	}
+	if req.AuxiliaryUserLimit != "" {
+		params["auxiliaryUserLimit"] = req.AuxiliaryUserLimit
+	}
+	if req.AuxiliaryProductLimit != "" {
+		params["auxiliaryProductLimit"] = req.AuxiliaryProductLimit
+	}
+	if req.AuxiliaryPackageLimit != "" {
+		params["auxiliaryPackageLimit"] = req.AuxiliaryPackageLimit
+	}
+	if req.AuxiliaryBugLimit != "" {
+		params["auxiliaryBugLimit"] = req.AuxiliaryBugLimit
+	}
+	if req.AuxiliaryReleaseLimit != "" {
+		params["auxiliaryReleaseLimit"] = req.AuxiliaryReleaseLimit
+	}
+	if req.AuxiliaryBugTagLimit != "" {
+		params["auxiliaryBugTagLimit"] = req.AuxiliaryBugTagLimit
+	}
+	if req.Cursor != "" {
+		params["cursor"] = req.Cursor
+	}
+
+	logger.Info().
+		Str("query", req.Query).
+		Str("limit", params["limit"]).
+		Msg("Executing custom Bugsby query")
+
+	// Make GET request to Bugsby API
+	resp, err := h.bugsbyClient.Get(c.Context(), "bugs", params)
+	if err != nil {
+		logger.Error().Err(err).Str("query", req.Query).Msg("Failed to execute Bugsby query")
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
+			Error:   "bugsby_query_failed",
+			Message: fmt.Sprintf("Failed to execute Bugsby query: %v", err),
+		})
+	}
+	defer resp.Body.Close()
+
+	// Parse Bugsby response
+	var bugsbyResp bugsby.BugsbyResponse
+	if err := json.NewDecoder(resp.Body).Decode(&bugsbyResp); err != nil {
+		logger.Error().Err(err).Msg("Failed to decode Bugsby response")
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
+			Error:   "decode_failed",
+			Message: "Failed to parse Bugsby response",
+		})
+	}
+
+	logger.Info().
+		Str("query", req.Query).
+		Int("bugs_count", len(bugsbyResp.Bugs)).
+		Bool("has_next", bugsbyResp.Metadata.HasNext).
+		Msg("Successfully executed Bugsby query")
+
+	// Return response with metadata
+	return c.Status(fiber.StatusOK).JSON(dto.SuccessResponse{
+		Success: true,
+		Message: fmt.Sprintf("Found %d bugs", len(bugsbyResp.Bugs)),
+		Data: fiber.Map{
+			"bugs":      bugsbyResp.Bugs,
+			"count":     len(bugsbyResp.Bugs),
+			"has_next":  bugsbyResp.Metadata.HasNext,
+			"cursor":    bugsbyResp.Metadata.Cursor,
+			"next_link": bugsbyResp.Metadata.Links.Next,
+			"query":     req.Query,
+		},
 	})
 }

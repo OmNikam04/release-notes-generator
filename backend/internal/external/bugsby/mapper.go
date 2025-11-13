@@ -22,8 +22,8 @@ func MapBugsbyBugToModel(bugsbyBug *BugsbyBug, userEmailToIDMap map[string]uuid.
 		Title:        bugsbyBug.Title,
 		Severity:     bugsbyBug.Severity,
 		Priority:     bugsbyBug.Priority,
-		BugType:      bugsbyBug.BugType,
-		Release:      bugsbyBug.Release,
+		BugType:      bugsbyBug.IssueType, // Map IssueType to BugType
+		Release:      bugsbyBug.Version,   // Map Version to Release
 		Component:    bugsbyBug.Component,
 		Status:       "pending", // Our internal status, not Bugsby's status
 		SyncStatus:   "synced",
@@ -35,24 +35,18 @@ func MapBugsbyBugToModel(bugsbyBug *BugsbyBug, userEmailToIDMap map[string]uuid.
 		bug.Description = &bugsbyBug.Description
 	}
 
-	// Set CVE number (nullable)
-	if bugsbyBug.CVE != "" {
-		bug.CVENumber = &bugsbyBug.CVE
-	}
+	// Note: Bugsby v3 API doesn't have CVE field directly
+	// You may need to extract it from description or other fields if needed
 
-	// Map AssignedTo email to user ID
-	if bugsbyBug.AssignedTo != "" && userEmailToIDMap != nil {
-		if userID, ok := userEmailToIDMap[bugsbyBug.AssignedTo]; ok {
+	// Map Assignee email to user ID
+	if bugsbyBug.Assignee != "" && userEmailToIDMap != nil {
+		if userID, ok := userEmailToIDMap[bugsbyBug.Assignee]; ok {
 			bug.AssignedTo = &userID
 		}
 	}
 
-	// Map Manager email to user ID
-	if bugsbyBug.Manager != "" && userEmailToIDMap != nil {
-		if userID, ok := userEmailToIDMap[bugsbyBug.Manager]; ok {
-			bug.ManagerID = &userID
-		}
-	}
+	// Note: Bugsby v3 API doesn't have Manager field
+	// You may need to determine manager from other fields or leave it nil
 
 	return bug
 }
@@ -60,14 +54,14 @@ func MapBugsbyBugToModel(bugsbyBug *BugsbyBug, userEmailToIDMap map[string]uuid.
 // MapBugsbyBugsToModels converts a slice of BugsbyBug to our internal Bug models
 func MapBugsbyBugsToModels(bugsbyBugs []BugsbyBug, userEmailToIDMap map[string]uuid.UUID) []*models.Bug {
 	bugs := make([]*models.Bug, 0, len(bugsbyBugs))
-	
+
 	for i := range bugsbyBugs {
 		bug := MapBugsbyBugToModel(&bugsbyBugs[i], userEmailToIDMap)
 		if bug != nil {
 			bugs = append(bugs, bug)
 		}
 	}
-	
+
 	return bugs
 }
 
@@ -75,21 +69,27 @@ func MapBugsbyBugsToModels(bugsbyBugs []BugsbyBug, userEmailToIDMap map[string]u
 // This is useful for creating user records before mapping
 func ExtractUniqueEmails(bugsbyBugs []BugsbyBug) []string {
 	emailSet := make(map[string]bool)
-	
+
 	for _, bug := range bugsbyBugs {
-		if bug.AssignedTo != "" {
-			emailSet[bug.AssignedTo] = true
+		if bug.Assignee != "" {
+			emailSet[bug.Assignee] = true
 		}
-		if bug.Manager != "" {
-			emailSet[bug.Manager] = true
+		if bug.ReportedBy != "" {
+			emailSet[bug.ReportedBy] = true
+		}
+		// Add watchers
+		for _, watcher := range bug.Watchers {
+			if watcher != "" {
+				emailSet[watcher] = true
+			}
 		}
 	}
-	
+
 	emails := make([]string, 0, len(emailSet))
 	for email := range emailSet {
 		emails = append(emails, email)
 	}
-	
+
 	return emails
 }
 
@@ -106,8 +106,8 @@ func MergeBugData(existingBug *models.Bug, bugsbyBug *BugsbyBug, userEmailToIDMa
 	existingBug.Title = bugsbyBug.Title
 	existingBug.Severity = bugsbyBug.Severity
 	existingBug.Priority = bugsbyBug.Priority
-	existingBug.BugType = bugsbyBug.BugType
-	existingBug.Release = bugsbyBug.Release
+	existingBug.BugType = bugsbyBug.IssueType // Map IssueType to BugType
+	existingBug.Release = bugsbyBug.Version   // Map Version to Release
 	existingBug.Component = bugsbyBug.Component
 	existingBug.SyncStatus = "synced"
 	existingBug.LastSyncedAt = &now
@@ -117,25 +117,12 @@ func MergeBugData(existingBug *models.Bug, bugsbyBug *BugsbyBug, userEmailToIDMa
 		existingBug.Description = &bugsbyBug.Description
 	}
 
-	// Update CVE number
-	if bugsbyBug.CVE != "" {
-		existingBug.CVENumber = &bugsbyBug.CVE
-	}
-
-	// Update AssignedTo
-	if bugsbyBug.AssignedTo != "" && userEmailToIDMap != nil {
-		if userID, ok := userEmailToIDMap[bugsbyBug.AssignedTo]; ok {
+	// Update Assignee
+	if bugsbyBug.Assignee != "" && userEmailToIDMap != nil {
+		if userID, ok := userEmailToIDMap[bugsbyBug.Assignee]; ok {
 			existingBug.AssignedTo = &userID
-		}
-	}
-
-	// Update Manager
-	if bugsbyBug.Manager != "" && userEmailToIDMap != nil {
-		if userID, ok := userEmailToIDMap[bugsbyBug.Manager]; ok {
-			existingBug.ManagerID = &userID
 		}
 	}
 
 	// Note: We don't update Status (our internal status) as it's managed by our workflow
 }
-
