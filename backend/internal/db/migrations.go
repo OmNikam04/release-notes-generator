@@ -46,10 +46,17 @@ func enableUUIDExtensions(db *gorm.DB) error {
 
 // migrateModels runs auto-migration for all models
 func migrateModels(db *gorm.DB) error {
-	// Add all your models here
+	// Add all your models here in order of dependencies
+	// Models with no foreign keys first, then models that depend on them
 	models := []interface{}{
 		&models.User{},
 		&models.RefreshToken{},
+		&models.Bug{},
+		&models.ReleaseNote{},
+		&models.Pattern{},
+		&models.Feedback{},
+		&models.FeedbackPattern{},
+		&models.AuditLog{},
 	}
 
 	for _, model := range models {
@@ -92,16 +99,49 @@ func runCustomMigrations(db *gorm.DB) error {
 		}
 	}
 
+	// Migration 3: Create GIN indexes for JSONB columns (for pattern matching)
+	// These indexes improve performance for JSONB queries
+	createGINIndexes(db)
+
 	log.Println("✅ Custom migrations completed")
 	return nil
+}
+
+// createGINIndexes creates GIN indexes for JSONB columns
+func createGINIndexes(db *gorm.DB) {
+	indexes := []struct {
+		table  string
+		column string
+		name   string
+	}{
+		{"feedbacks", "bug_context", "idx_feedback_bug_context"},
+		{"feedbacks", "extracted_patterns", "idx_feedback_patterns"},
+		{"patterns", "applicable_when", "idx_pattern_applicable"},
+	}
+
+	for _, idx := range indexes {
+		sql := fmt.Sprintf("CREATE INDEX IF NOT EXISTS %s ON %s USING GIN (%s)", idx.name, idx.table, idx.column)
+		if err := db.Exec(sql).Error; err != nil {
+			log.Printf("Warning: Failed to create GIN index %s: %v", idx.name, err)
+		} else {
+			log.Printf("✅ Created GIN index: %s", idx.name)
+		}
+	}
 }
 
 // DropAllTables drops all tables (use with caution!)
 // Only use this in development/testing
 func DropAllTables(db *gorm.DB) error {
+	// Drop tables in reverse order of dependencies
 	models := []interface{}{
-		&models.RefreshToken{}, // Drop refresh_tokens first due to foreign key
-		&models.User{},
+		&models.AuditLog{},        // No dependencies on other tables (except User, but uses SET NULL)
+		&models.FeedbackPattern{}, // Depends on Feedback and Pattern
+		&models.Feedback{},        // Depends on ReleaseNote, Bug, User
+		&models.Pattern{},         // No dependencies
+		&models.ReleaseNote{},     // Depends on Bug
+		&models.Bug{},             // Depends on User
+		&models.RefreshToken{},    // Depends on User
+		&models.User{},            // Base table
 	}
 
 	for _, model := range models {
