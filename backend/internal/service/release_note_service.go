@@ -19,6 +19,9 @@ type ReleaseNoteService interface {
 	// Get bugs without release notes
 	GetPendingBugs(ctx context.Context, userID uuid.UUID, filters *PendingBugsFilters, pagination *repository.Pagination) (*PendingBugsResult, error)
 
+	// Get bugs WITH release notes (Kanban view)
+	GetReleaseNotes(ctx context.Context, userID uuid.UUID, filters *ReleaseNotesFilters, pagination *repository.Pagination) (*ReleaseNotesResult, error)
+
 	// Get bug context for AI generation
 	GetBugContext(ctx context.Context, bugID uuid.UUID) (*BugContext, error)
 
@@ -49,6 +52,15 @@ type PendingBugsFilters struct {
 	Component  string
 }
 
+// ReleaseNotesFilters represents filters for release notes query (bugs WITH release notes)
+type ReleaseNotesFilters struct {
+	AssignedTo *uuid.UUID // Filter by bug's assigned developer
+	ManagerID  *uuid.UUID // Filter by bug's manager
+	Status     []string   // Filter by release note status
+	Release    string     // Filter by bug's release
+	Component  string     // Filter by bug's component
+}
+
 // BugContext represents bug details with commit information
 type BugContext struct {
 	Bug         *models.Bug
@@ -61,6 +73,13 @@ type PendingBugsResult struct {
 	Bugs       []*models.Bug
 	Total      int64
 	Pagination *repository.Pagination
+}
+
+// ReleaseNotesResult represents the result of release notes query (bugs WITH release notes)
+type ReleaseNotesResult struct {
+	ReleaseNotes []*models.ReleaseNote
+	Total        int64
+	Pagination   *repository.Pagination
 }
 
 // BulkGenerateResult represents the result of bulk generation
@@ -140,6 +159,42 @@ func (s *releaseNoteService) GetPendingBugs(
 		Bugs:       bugs,
 		Total:      total,
 		Pagination: pagination,
+	}, nil
+}
+
+// GetReleaseNotes retrieves bugs WITH release notes (Kanban view)
+func (s *releaseNoteService) GetReleaseNotes(
+	ctx context.Context,
+	userID uuid.UUID,
+	filters *ReleaseNotesFilters,
+	pagination *repository.Pagination,
+) (*ReleaseNotesResult, error) {
+	// Convert to repository filters
+	repoFilters := &repository.ReleaseNoteFilters{
+		AssignedTo: filters.AssignedTo,
+		ManagerID:  filters.ManagerID,
+		Status:     filters.Status,
+		Release:    filters.Release,
+		Component:  filters.Component,
+	}
+
+	// Get release notes
+	notes, total, err := s.releaseNoteRepo.List(repoFilters, pagination)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to get release notes")
+		return nil, fmt.Errorf("failed to get release notes: %w", err)
+	}
+
+	logger.Info().
+		Str("user_id", userID.String()).
+		Int64("total", total).
+		Int("returned", len(notes)).
+		Msg("Retrieved release notes")
+
+	return &ReleaseNotesResult{
+		ReleaseNotes: notes,
+		Total:        total,
+		Pagination:   pagination,
 	}, nil
 }
 

@@ -433,7 +433,119 @@ Authorization: Bearer <token>
 
 ## Release Notes Workflow Endpoints
 
-### 13. Get Pending Bugs (Bugs Without Release Notes)
+### 13. Get Release Notes (Kanban View)
+
+**Endpoint:** `GET /api/v1/release-notes`
+**Authentication:** Required
+**Description:** Get bugs WITH release notes, filtered by status for Kanban board view. This endpoint supports filtering by developer assignment, manager assignment, status, release, and component.
+
+**Query Parameters:**
+- `assigned_to_me` (boolean): Filter by bugs assigned to current user
+- `manager_id` (boolean): Filter by bugs managed by current user (use `true` for current user)
+- `status` (array): Filter by release note status (`ai_generated`, `dev_approved`, `manager_approved`, `rejected`, `draft`)
+- `release` (string): Filter by release
+- `component` (string): Filter by component
+- `page` (int): Page number (default: 1)
+- `limit` (int): Items per page (default: 20)
+- `sort_by` (string): Sort field
+- `sort_order` (string): "asc" or "desc"
+
+**Example Requests:**
+
+**Developer Kanban View - Column 1 (AI Generated):**
+```
+GET /api/v1/release-notes?assigned_to_me=true&status=ai_generated&page=1&limit=20
+Authorization: Bearer <token>
+```
+
+**Developer Kanban View - Column 2 (Dev Approved):**
+```
+GET /api/v1/release-notes?assigned_to_me=true&status=dev_approved&page=1&limit=20
+Authorization: Bearer <token>
+```
+
+**Developer Kanban View - Column 3 (Manager Approved):**
+```
+GET /api/v1/release-notes?assigned_to_me=true&status=manager_approved&page=1&limit=20
+Authorization: Bearer <token>
+```
+
+**Manager Kanban View - Needs Approval:**
+```
+GET /api/v1/release-notes?manager_id=true&status=dev_approved&page=1&limit=20
+Authorization: Bearer <token>
+```
+
+**Filter by Release:**
+```
+GET /api/v1/release-notes?release=wifi.nainital&status=ai_generated
+Authorization: Bearer <token>
+```
+
+**Success Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "release_notes": [
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440000",
+        "bug_id": "fd108a72-a6d4-4b85-9266-54286309421f",
+        "content": "Fixed an issue where WM was not deleting stale PCAP fragments...",
+        "category": "bug_fix",
+        "status": "ai_generated",
+        "generated_by": "openai",
+        "created_by_id": "550e8400-e29b-41d4-a716-446655440001",
+        "approved_by_dev_id": null,
+        "approved_by_mgr_id": null,
+        "created_at": "2025-01-15T10:30:00Z",
+        "updated_at": "2025-01-15T10:30:00Z",
+        "bug": {
+          "id": "fd108a72-a6d4-4b85-9266-54286309421f",
+          "bugsby_id": "1184600",
+          "title": "[Systest][SWAT-Wifi] WM is not deleting stale PCAP fragments",
+          "severity": "major",
+          "priority": "P2",
+          "release": "wifi.nainital",
+          "component": "wifi-manager",
+          "assigned_to": "550e8400-e29b-41d4-a716-446655440001",
+          "manager_id": "550e8400-e29b-41d4-a716-446655440002"
+        }
+      }
+    ],
+    "total": 15,
+    "page": 1,
+    "limit": 20,
+    "total_pages": 1
+  }
+}
+```
+
+**Use Cases:**
+
+1. **Developer Kanban Board:**
+   - Column 1: `GET /api/v1/release-notes?assigned_to_me=true&status=ai_generated`
+   - Column 2: `GET /api/v1/release-notes?assigned_to_me=true&status=dev_approved`
+   - Column 3: `GET /api/v1/release-notes?assigned_to_me=true&status=manager_approved`
+
+2. **Manager Kanban Board:**
+   - Column 1: `GET /api/v1/release-notes?manager_id=true&status=dev_approved` (Needs my approval)
+   - Column 2: `GET /api/v1/release-notes?manager_id=true&status=manager_approved` (I approved)
+   - Column 3: `GET /api/v1/release-notes?manager_id=true&status=rejected` (I rejected)
+
+3. **Optimistic UI Updates:**
+   - Fetch each column separately
+   - When user approves a bug, update the status via `PUT /api/v1/release-notes/:id`
+   - Optimistically move the card in UI
+   - Optionally refetch only the affected columns
+
+**Error Responses:**
+- `401 Unauthorized`: Missing or invalid token
+- `400 Bad Request`: Invalid query parameters
+
+---
+
+### 14. Get Pending Bugs (Bugs Without Release Notes)
 
 **Endpoint:** `GET /api/v1/release-notes/pending`
 **Authentication:** Required
@@ -483,7 +595,7 @@ Authorization: Bearer <token>
 
 ---
 
-### 14. Get Bug Context with Commit Information
+### 15. Get Bug Context with Commit Information
 
 **Endpoint:** `GET /api/v1/release-notes/bug/:bug_id/context`
 **Authentication:** Required
@@ -548,7 +660,7 @@ This endpoint is crucial for the release notes generation workflow. It:
 
 ---
 
-### 15. Generate Release Note
+### 16. Generate Release Note
 
 **Endpoint:** `POST /api/v1/release-notes/generate`
 **Authentication:** Required
@@ -599,7 +711,7 @@ This endpoint is crucial for the release notes generation workflow. It:
 
 ---
 
-### 16. Get Release Note by Bug ID
+### 17. Get Release Note by Bug ID
 
 **Endpoint:** `GET /api/v1/release-notes/bug/:bug_id`
 **Authentication:** Required
@@ -647,7 +759,7 @@ Authorization: Bearer <token>
 
 ---
 
-### 17. Update Release Note
+### 18. Update Release Note
 
 **Endpoint:** `PUT /api/v1/release-notes/:id`
 **Authentication:** Required
@@ -687,7 +799,7 @@ Authorization: Bearer <token>
 
 ---
 
-### 18. Bulk Generate Release Notes
+### 19. Bulk Generate Release Notes
 
 **Endpoint:** `POST /api/v1/release-notes/bulk-generate`
 **Authentication:** Required
@@ -743,7 +855,7 @@ Authorization: Bearer <token>
 
 ---
 
-### 19. Approve/Reject Release Note (Manager Only)
+### 20. Approve/Reject Release Note (Manager Only)
 
 **Endpoint:** `POST /api/v1/release-notes/:id/approve`
 **Authentication:** Required (Manager role)

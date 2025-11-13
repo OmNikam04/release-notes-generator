@@ -112,6 +112,97 @@ func (h *ReleaseNoteHandler) GetPendingBugs(c *fiber.Ctx) error {
 	})
 }
 
+// GetReleaseNotes gets bugs WITH release notes (Kanban view)
+// GET /api/v1/release-notes
+func (h *ReleaseNoteHandler) GetReleaseNotes(c *fiber.Ctx) error {
+	// Get current user from context
+	userID, ok := c.Locals("userID").(uuid.UUID)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(dto.ErrorResponse{
+			Error:   "unauthorized",
+			Message: "User not authenticated",
+		})
+	}
+
+	// Parse query parameters
+	var req dto.GetReleaseNotesRequest
+	if err := c.QueryParser(&req); err != nil {
+		logger.Error().Err(err).Msg("Invalid query parameters")
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
+			Error:   "invalid_request",
+			Message: "Invalid query parameters",
+		})
+	}
+
+	// Set defaults
+	if req.Page == 0 {
+		req.Page = 1
+	}
+	if req.Limit == 0 {
+		req.Limit = 20
+	}
+
+	// Build filters
+	filters := &service.ReleaseNotesFilters{
+		Status:    req.Status,
+		Release:   req.Release,
+		Component: req.Component,
+	}
+
+	// If assigned_to_me is true, filter by current user
+	if req.AssignedToMe {
+		filters.AssignedTo = &userID
+	}
+
+	// If manager_id is true, filter by current user as manager
+	if req.ManagerID {
+		filters.ManagerID = &userID
+	}
+
+	// Build pagination
+	pagination := &repository.Pagination{
+		Page:      req.Page,
+		Limit:     req.Limit,
+		SortBy:    req.SortBy,
+		SortOrder: req.SortOrder,
+	}
+
+	// Get release notes
+	result, err := h.releaseNoteService.GetReleaseNotes(c.Context(), userID, filters, pagination)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to get release notes")
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
+			Error:   "fetch_failed",
+			Message: "Failed to retrieve release notes",
+		})
+	}
+
+	// Convert to response
+	totalPages := int(result.Total) / req.Limit
+	if int(result.Total)%req.Limit != 0 {
+		totalPages++
+	}
+
+	response := &dto.ReleaseNotesListResponse{
+		ReleaseNotes: make([]dto.ReleaseNoteDetailResponse, 0, len(result.ReleaseNotes)),
+		Total:        result.Total,
+		Page:         req.Page,
+		Limit:        req.Limit,
+		TotalPages:   totalPages,
+	}
+
+	for _, note := range result.ReleaseNotes {
+		if noteResp := dto.ToReleaseNoteDetailResponse(note); noteResp != nil {
+			response.ReleaseNotes = append(response.ReleaseNotes, *noteResp)
+		}
+	}
+
+	return c.Status(fiber.StatusOK).JSON(dto.SuccessResponse{
+		Success: true,
+		Data:    response,
+	})
+}
+
 // GetBugContext gets bug details with commit information
 // GET /api/v1/release-notes/bug/:bug_id/context
 func (h *ReleaseNoteHandler) GetBugContext(c *fiber.Ctx) error {

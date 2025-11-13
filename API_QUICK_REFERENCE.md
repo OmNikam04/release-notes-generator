@@ -20,35 +20,50 @@ Header: Authorization: Bearer <token>
 
 ## 📋 Main Workflow Endpoints
 
-### 1. Get Pending Bugs
+### 1. Get Release Notes (Kanban View)
+```bash
+# Developer Kanban - Column 1: AI Generated
+GET /release-notes?assigned_to_me=true&status=ai_generated
+
+# Developer Kanban - Column 2: Dev Approved
+GET /release-notes?assigned_to_me=true&status=dev_approved
+
+# Developer Kanban - Column 3: Manager Approved
+GET /release-notes?assigned_to_me=true&status=manager_approved
+
+# Manager Kanban - Needs Approval
+GET /release-notes?manager_id=true&status=dev_approved
+```
+
+### 2. Get Pending Bugs
 ```bash
 GET /release-notes/pending?assigned_to_me=true&limit=20
 ```
 
-### 2. Get Bug Context (with commits)
+### 3. Get Bug Context (with commits)
 ```bash
 GET /release-notes/bug/{bug_id}/context
 ```
 **Returns:** Bug details + parsed Gerrit commits
 
-### 3. Generate Release Note
+### 4. Generate Release Note
 ```bash
 POST /release-notes/generate
 Body: { "bug_id": "uuid..." }
 ```
 
-### 4. Get Release Note
+### 5. Get Release Note
 ```bash
 GET /release-notes/bug/{bug_id}
 ```
 
-### 5. Update Release Note
+### 6. Update Release Note
 ```bash
 PUT /release-notes/{id}
 Body: { "content": "...", "status": "dev_approved" }
 ```
 
-### 6. Approve/Reject (Manager)
+### 7. Approve/Reject (Manager)
 ```bash
 POST /release-notes/{id}/approve
 Body: { "action": "approve", "feedback": "..." }

@@ -26,6 +26,11 @@ type ReleaseNoteFilters struct {
 	CreatedByID   *uuid.UUID
 	ApprovedByDev *uuid.UUID
 	ApprovedByMgr *uuid.UUID
+	// Bug-related filters (requires join with bugs table)
+	AssignedTo *uuid.UUID // Filter by bug's assigned developer
+	ManagerID  *uuid.UUID // Filter by bug's manager
+	Release    string     // Filter by bug's release
+	Component  string     // Filter by bug's component
 }
 
 // PendingBugsFilters represents filter options for querying bugs without release notes
@@ -102,31 +107,63 @@ func (r *releaseNoteRepository) List(filters *ReleaseNoteFilters, pagination *Pa
 
 	query := r.db.Model(&models.ReleaseNote{})
 
-	// Apply filters
+	// Check if we need to join with bugs table
+	needsBugJoin := false
 	if filters != nil {
-		if filters.BugID != nil {
-			query = query.Where("bug_id = ?", *filters.BugID)
-		}
-		if len(filters.Status) > 0 {
-			query = query.Where("status IN ?", filters.Status)
-		}
-		if filters.GeneratedBy != "" {
-			query = query.Where("generated_by = ?", filters.GeneratedBy)
-		}
-		if filters.CreatedByID != nil {
-			query = query.Where("created_by_id = ?", *filters.CreatedByID)
-		}
-		if filters.ApprovedByDev != nil {
-			query = query.Where("approved_by_dev_id = ?", *filters.ApprovedByDev)
-		}
-		if filters.ApprovedByMgr != nil {
-			query = query.Where("approved_by_mgr_id = ?", *filters.ApprovedByMgr)
+		if filters.AssignedTo != nil || filters.ManagerID != nil || filters.Release != "" || filters.Component != "" {
+			needsBugJoin = true
 		}
 	}
 
-	// Count total
-	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, err
+	// Join with bugs table if needed
+	if needsBugJoin {
+		query = query.Joins("JOIN bugs ON bugs.id = release_notes.bug_id")
+	}
+
+	// Apply filters
+	if filters != nil {
+		if filters.BugID != nil {
+			query = query.Where("release_notes.bug_id = ?", *filters.BugID)
+		}
+		if len(filters.Status) > 0 {
+			query = query.Where("release_notes.status IN ?", filters.Status)
+		}
+		if filters.GeneratedBy != "" {
+			query = query.Where("release_notes.generated_by = ?", filters.GeneratedBy)
+		}
+		if filters.CreatedByID != nil {
+			query = query.Where("release_notes.created_by_id = ?", *filters.CreatedByID)
+		}
+		if filters.ApprovedByDev != nil {
+			query = query.Where("release_notes.approved_by_dev_id = ?", *filters.ApprovedByDev)
+		}
+		if filters.ApprovedByMgr != nil {
+			query = query.Where("release_notes.approved_by_mgr_id = ?", *filters.ApprovedByMgr)
+		}
+		// Bug-related filters
+		if filters.AssignedTo != nil {
+			query = query.Where("bugs.assigned_to = ?", *filters.AssignedTo)
+		}
+		if filters.ManagerID != nil {
+			query = query.Where("bugs.manager_id = ?", *filters.ManagerID)
+		}
+		if filters.Release != "" {
+			query = query.Where("bugs.release = ?", filters.Release)
+		}
+		if filters.Component != "" {
+			query = query.Where("bugs.component = ?", filters.Component)
+		}
+	}
+
+	// Count total (need to select distinct release_notes.id to avoid duplicates from join)
+	if needsBugJoin {
+		if err := query.Distinct("release_notes.id").Count(&total).Error; err != nil {
+			return nil, 0, err
+		}
+	} else {
+		if err := query.Count(&total).Error; err != nil {
+			return nil, 0, err
+		}
 	}
 
 	// Apply pagination
@@ -136,7 +173,7 @@ func (r *releaseNoteRepository) List(filters *ReleaseNoteFilters, pagination *Pa
 
 		// Apply sorting
 		if pagination.SortBy != "" {
-			order := pagination.SortBy
+			order := "release_notes." + pagination.SortBy
 			if pagination.SortOrder == "desc" {
 				order += " DESC"
 			} else {
@@ -144,13 +181,19 @@ func (r *releaseNoteRepository) List(filters *ReleaseNoteFilters, pagination *Pa
 			}
 			query = query.Order(order)
 		} else {
-			query = query.Order("created_at DESC")
+			query = query.Order("release_notes.created_at DESC")
 		}
 	}
 
 	// Execute query with preloading
-	err := query.Preload("Bug").Find(&notes).Error
-	return notes, total, err
+	// Need to select distinct to avoid duplicates from join
+	if needsBugJoin {
+		err := query.Distinct("release_notes.*").Preload("Bug").Find(&notes).Error
+		return notes, total, err
+	} else {
+		err := query.Preload("Bug").Find(&notes).Error
+		return notes, total, err
+	}
 }
 
 // ListPendingBugs retrieves bugs that don't have release notes yet

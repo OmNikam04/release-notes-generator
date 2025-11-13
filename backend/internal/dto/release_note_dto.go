@@ -23,6 +23,19 @@ type GetPendingBugsRequest struct {
 	SortOrder    string   `query:"sort_order"`
 }
 
+// GetReleaseNotesRequest represents query parameters for getting bugs WITH release notes (Kanban view)
+type GetReleaseNotesRequest struct {
+	AssignedToMe bool     `query:"assigned_to_me"` // Filter by bugs assigned to current user
+	ManagerID    bool     `query:"manager_id"`     // Filter by bugs managed by current user (use "me" for current user)
+	Status       []string `query:"status"`         // Filter by release note status (ai_generated, dev_approved, mgr_approved, rejected)
+	Release      string   `query:"release"`        // Filter by release
+	Component    string   `query:"component"`      // Filter by component
+	Page         int      `query:"page"`
+	Limit        int      `query:"limit"`
+	SortBy       string   `query:"sort_by"`
+	SortOrder    string   `query:"sort_order"`
+}
+
 // GenerateReleaseNoteRequest represents a request to generate a release note
 type GenerateReleaseNoteRequest struct {
 	BugID         uuid.UUID `json:"bug_id" validate:"required"`
@@ -65,30 +78,30 @@ type CommitInfoResponse struct {
 
 // BugContextResponse represents bug details with commit information for AI generation
 type BugContextResponse struct {
-	Bug              *BugResponse          `json:"bug"`
-	Comments         []CommitInfoResponse  `json:"comments"`
-	CommitCount      int                   `json:"commit_count"`
-	ReadyForGenerate bool                  `json:"ready_for_generation"`
+	Bug              *BugResponse         `json:"bug"`
+	Comments         []CommitInfoResponse `json:"comments"`
+	CommitCount      int                  `json:"commit_count"`
+	ReadyForGenerate bool                 `json:"ready_for_generation"`
 }
 
 // ReleaseNoteDetailResponse represents a detailed release note response
 type ReleaseNoteDetailResponse struct {
-	ID                uuid.UUID  `json:"id"`
-	BugID             uuid.UUID  `json:"bug_id"`
-	Content           string     `json:"content"`
-	Version           int        `json:"version"`
-	GeneratedBy       string     `json:"generated_by"`
-	AIModel           *string    `json:"ai_model,omitempty"`
-	AIConfidence      *float64   `json:"ai_confidence,omitempty"`
-	Status            string     `json:"status"`
-	CreatedByID       *uuid.UUID `json:"created_by_id,omitempty"`
-	ApprovedByDevID   *uuid.UUID `json:"approved_by_dev_id,omitempty"`
-	ApprovedByMgrID   *uuid.UUID `json:"approved_by_mgr_id,omitempty"`
-	DevApprovedAt     *time.Time `json:"dev_approved_at,omitempty"`
-	MgrApprovedAt     *time.Time `json:"mgr_approved_at,omitempty"`
-	CreatedAt         time.Time  `json:"created_at"`
-	UpdatedAt         time.Time  `json:"updated_at"`
-	Bug               *BugResponse `json:"bug,omitempty"`
+	ID              uuid.UUID    `json:"id"`
+	BugID           uuid.UUID    `json:"bug_id"`
+	Content         string       `json:"content"`
+	Version         int          `json:"version"`
+	GeneratedBy     string       `json:"generated_by"`
+	AIModel         *string      `json:"ai_model,omitempty"`
+	AIConfidence    *float64     `json:"ai_confidence,omitempty"`
+	Status          string       `json:"status"`
+	CreatedByID     *uuid.UUID   `json:"created_by_id,omitempty"`
+	ApprovedByDevID *uuid.UUID   `json:"approved_by_dev_id,omitempty"`
+	ApprovedByMgrID *uuid.UUID   `json:"approved_by_mgr_id,omitempty"`
+	DevApprovedAt   *time.Time   `json:"dev_approved_at,omitempty"`
+	MgrApprovedAt   *time.Time   `json:"mgr_approved_at,omitempty"`
+	CreatedAt       time.Time    `json:"created_at"`
+	UpdatedAt       time.Time    `json:"updated_at"`
+	Bug             *BugResponse `json:"bug,omitempty"`
 }
 
 // PendingBugsResponse represents a list of bugs without release notes
@@ -98,6 +111,15 @@ type PendingBugsResponse struct {
 	Page       int           `json:"page"`
 	Limit      int           `json:"limit"`
 	TotalPages int           `json:"total_pages"`
+}
+
+// ReleaseNotesListResponse represents a list of bugs WITH release notes (Kanban view)
+type ReleaseNotesListResponse struct {
+	ReleaseNotes []ReleaseNoteDetailResponse `json:"release_notes"`
+	Total        int64                       `json:"total"`
+	Page         int                         `json:"page"`
+	Limit        int                         `json:"limit"`
+	TotalPages   int                         `json:"total_pages"`
 }
 
 // BulkGenerateItemResponse represents the result of generating one release note
@@ -110,10 +132,10 @@ type BulkGenerateItemResponse struct {
 
 // BulkGenerateResponse represents the result of bulk generation
 type BulkGenerateResponse struct {
-	Total     int                            `json:"total"`
-	Generated int                            `json:"generated"`
-	Failed    int                            `json:"failed"`
-	Results   []BulkGenerateItemResponse     `json:"results"`
+	Total     int                        `json:"total"`
+	Generated int                        `json:"generated"`
+	Failed    int                        `json:"failed"`
+	Results   []BulkGenerateItemResponse `json:"results"`
 }
 
 // ===== Converter Functions =====
@@ -168,4 +190,3 @@ func ToReleaseNoteDetailResponse(note *models.ReleaseNote) *ReleaseNoteDetailRes
 
 	return response
 }
-
