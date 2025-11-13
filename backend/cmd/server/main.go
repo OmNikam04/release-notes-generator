@@ -16,6 +16,7 @@ import (
 	"github.com/omnikam04/release-notes-generator/internal/api/routes"
 	"github.com/omnikam04/release-notes-generator/internal/config"
 	"github.com/omnikam04/release-notes-generator/internal/db"
+	"github.com/omnikam04/release-notes-generator/internal/external/bugsby"
 	appLogger "github.com/omnikam04/release-notes-generator/internal/logger"
 	"github.com/omnikam04/release-notes-generator/internal/repository"
 	"github.com/omnikam04/release-notes-generator/internal/service"
@@ -39,22 +40,36 @@ func main() {
 
 	// Run database migrations
 	if err := db.RunMigrations(database); err != nil {
-	// 	log.Fatalf("❌ Failed to run migrations: %v", err)
+		// 	log.Fatalf("❌ Failed to run migrations: %v", err)
 	}
+
+	// Initialize Bugsby client
+	bugsbyClient, err := bugsby.NewClient(&bugsby.Config{
+		BaseURL:   cfg.BugsbyAPIURL,
+		TokenFile: cfg.BugsbyTokenFile,
+	})
+	if err != nil {
+		log.Fatalf("❌ Failed to initialize Bugsby client: %v", err)
+	}
+	appLogger.Info().Msg("✅ Bugsby client initialized successfully")
 
 	// Initialize repositories
 	userRepo := repository.NewUserRepository(database)
 	refreshRepo := repository.NewRefreshTokenRepository(database)
+	bugRepo := repository.NewBugRepository(database)
 
 	// Initialize services
 	userService := service.NewUserService(userRepo, refreshRepo)
+	bugsbySyncService := service.NewBugsbySyncService(bugsbyClient, bugRepo, userRepo)
 
 	// Initialize handlers (pass config for JWT)
 	userHandler := handlers.NewUserHandler(userService, cfg)
+	bugHandler := handlers.NewBugHandler(bugsbySyncService, bugRepo)
 
 	// Create handlers struct for routing
 	routeHandlers := &routes.Handlers{
 		UserHandler: userHandler,
+		BugHandler:  bugHandler,
 	}
 
 	// Create Fiber app

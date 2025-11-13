@@ -12,6 +12,11 @@ type Config struct {
 	Port      string
 	DBUrl     string
 	JWTSecret string
+
+	// Bugsby API Configuration
+	BugsbyAPIURL    string
+	BugsbyAuthToken string
+	BugsbyTokenFile string
 }
 
 func Load() (*Config, error) {
@@ -26,6 +31,11 @@ func Load() (*Config, error) {
 		Port:      viper.GetString("PORT"),
 		DBUrl:     viper.GetString("DB_URL"),     // Match .env
 		JWTSecret: viper.GetString("JWT_SECRET"), // Match .env
+
+		// Bugsby configuration (optional - will use defaults if not set)
+		BugsbyAPIURL:    viper.GetString("BUGSBY_API_URL"),
+		BugsbyAuthToken: viper.GetString("BUGSBY_AUTH_TOKEN"),
+		BugsbyTokenFile: viper.GetString("BUGSBY_TOKEN_FILE"),
 	}
 
 	// Validate required fields
