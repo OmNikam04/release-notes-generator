@@ -26,44 +26,83 @@ const MyBugs = () => {
   const [logoutLoading, setLogoutLoading] = useState(false);
   const [showError, setShowError] = useState(false);
 
+  // Individual column loading states
+  const [columnLoading, setColumnLoading] = useState({
+    pending: false,
+    dev_approved: false,
+    mgr_approved: false
+  });
+
   useEffect(() => {
     // Fetch bugs from backend API on component mount
     const fetchBugsFromAPI = async () => {
       setApiLoading(true);
       setApiError('');
+      setColumnLoading({ pending: true, dev_approved: true, mgr_approved: true });
 
       try {
-        console.log('[MyBugs] Fetching bugs from backend API for user:', user?.email);
+        console.log('[MyBugs] Fetching Kanban columns from backend API for user:', user?.email);
+        console.log('[MyBugs] Column 1 (Pending) - Loading...');
+        console.log('[MyBugs] Column 2 (Dev Approved) - Loading...');
+        console.log('[MyBugs] Column 3 (Manager Approved) - Loading...');
 
-        // Fetch bugs from backend
-        const response = await bugsAPI.getBugs();
+        // Fetch each Kanban column separately based on status
+        const [pendingResponse, devApprovedResponse, mgrApprovedResponse] = await Promise.all([
+          bugsAPI.getReleaseNotes({ status: 'pending' }),
+          bugsAPI.getReleaseNotes({ status: 'dev_approved' }),
+          bugsAPI.getReleaseNotes({ status: 'mgr_approved' })
+        ]);
 
-        console.log('[MyBugs] Bugs fetched from backend:', response.bugs);
-        console.log('[MyBugs] Total bugs:', response.pagination?.total || response.bugs?.length);
-        console.log('[MyBugs] Pagination info:', response.pagination);
+        console.log('[MyBugs] Column 1 (Pending) - Loaded:', pendingResponse.release_notes.length, 'bugs');
+        console.log('[MyBugs] Column 2 (Dev Approved) - Loaded:', devApprovedResponse.release_notes.length, 'bugs');
+        console.log('[MyBugs] Column 3 (Manager Approved) - Loaded:', mgrApprovedResponse.release_notes.length, 'bugs');
+
+        // Combine all bugs from all columns
+        const allBugs = [
+          ...pendingResponse.release_notes,
+          ...devApprovedResponse.release_notes,
+          ...mgrApprovedResponse.release_notes
+        ];
 
         // Transform backend data to match frontend format
-        // Backend returns bugs with generated_note as null initially
-        const transformedBugs = response.bugs.map(bug => ({
-          ...bug,
-          generated_note: bug.generated_note || null, // Explicitly set to null if not present
+        const transformedBugs = allBugs.map(note => ({
+          ...note,
+          generated_note: note.generated_note || null, // Explicitly set to null if not present
         }));
 
+        console.log('[MyBugs] Total bugs from all columns:', transformedBugs.length);
         console.log('[MyBugs] Transformed bugs:', transformedBugs);
 
         // Dispatch to Redux store
         dispatch(fetchBugs(transformedBugs));
       } catch (error) {
-        console.error('[MyBugs] Failed to fetch bugs from API:', error.message);
+        console.error('[MyBugs] ❌ AUTHORIZATION ERROR - Failed to fetch Kanban columns from API');
+        console.error('[MyBugs] Error message:', error.message);
+        console.error('[MyBugs] Full error:', error);
+
         const errorMsg = error.message || 'Failed to load bugs';
+        console.log('[MyBugs] Setting error message:', errorMsg);
+
         setApiError(errorMsg);
         setShowError(true);
-        // Auto-hide error after 5 seconds
-        setTimeout(() => setShowError(false), 5000);
+
+        console.log('[MyBugs] ✅ Error state updated - showError: true, apiError:', errorMsg);
+        console.log('[MyBugs] Error toast should now be visible at bottom-right corner');
+
+        // Auto-hide error after 10 seconds (longer duration for visibility)
+        const errorTimeout = setTimeout(() => {
+          console.log('[MyBugs] Auto-hiding error toast after 10 seconds');
+          setShowError(false);
+        }, 10000);
+
         // Fallback to empty bugs list
         dispatch(fetchBugs([]));
+
+        // Cleanup timeout if component unmounts
+        return () => clearTimeout(errorTimeout);
       } finally {
         setApiLoading(false);
+        setColumnLoading({ pending: false, dev_approved: false, mgr_approved: false });
       }
     };
 
@@ -177,7 +216,7 @@ const MyBugs = () => {
     <div className="my-bugs-page">
       <div className="page-header">
         <div className="header-left">
-          <h1>🔥 NoteForge</h1>
+          <h1>ReleaseNotegenerator</h1>
           <p className="page-subtitle">
             Manage and track your assigned bugs. Generate release notes with AI assistance.
           </p>
@@ -190,6 +229,13 @@ const MyBugs = () => {
               <span className="user-role">{user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'Developer'}</span>
             </div>
           </div>
+          <button
+            className="admin-button"
+            onClick={() => navigate('/releaseadmin')}
+            title="Release Admin Panel"
+          >
+            🔧
+          </button>
           <button
             className="logout-button"
             onClick={handleLogout}
@@ -204,7 +250,7 @@ const MyBugs = () => {
       {/* Loading State */}
       {apiLoading && (
         <div className="loading-message">
-          <p>Loading bugs from backend...</p>
+          <p>⏳ Loading bugs from backend...</p>
         </div>
       )}
 
@@ -264,10 +310,14 @@ const MyBugs = () => {
                 <span className="column-icon">🤖</span>
                 Raw AI Generated
               </h3>
-              <span className="column-count">{kanbanColumns.pending.length}</span>
+              <span className="column-count">{columnLoading.pending ? '⏳' : kanbanColumns.pending.length}</span>
             </div>
             <div className="column-content">
-              {kanbanColumns.pending.length > 0 ? (
+              {columnLoading.pending ? (
+                <div className="empty-column-message">
+                  <p>Loading pending bugs...</p>
+                </div>
+              ) : kanbanColumns.pending.length > 0 ? (
                 kanbanColumns.pending.map(bug => (
                   <BugCard
                     key={bug.id}
@@ -290,10 +340,14 @@ const MyBugs = () => {
                 <span className="column-icon">👨‍💻</span>
                 Developer Approved
               </h3>
-              <span className="column-count">{kanbanColumns.dev_approved.length}</span>
+              <span className="column-count">{columnLoading.dev_approved ? '⏳' : kanbanColumns.dev_approved.length}</span>
             </div>
             <div className="column-content">
-              {kanbanColumns.dev_approved.length > 0 ? (
+              {columnLoading.dev_approved ? (
+                <div className="empty-column-message">
+                  <p>Loading developer approved bugs...</p>
+                </div>
+              ) : kanbanColumns.dev_approved.length > 0 ? (
                 kanbanColumns.dev_approved.map(bug => (
                   <BugCard
                     key={bug.id}
@@ -316,10 +370,14 @@ const MyBugs = () => {
                 <span className="column-icon">✅</span>
                 Release Note Approved
               </h3>
-              <span className="column-count">{kanbanColumns.approved.length}</span>
+              <span className="column-count">{columnLoading.mgr_approved ? '⏳' : kanbanColumns.approved.length}</span>
             </div>
             <div className="column-content">
-              {kanbanColumns.approved.length > 0 ? (
+              {columnLoading.mgr_approved ? (
+                <div className="empty-column-message">
+                  <p>Loading manager approved bugs...</p>
+                </div>
+              ) : kanbanColumns.approved.length > 0 ? (
                 kanbanColumns.approved.map(bug => (
                   <BugCard
                     key={bug.id}

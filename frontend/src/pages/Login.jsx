@@ -54,9 +54,9 @@ const Login = () => {
       }));
 
       console.log('[LOGIN] Redux state updated');
-      console.log('[LOGIN] Redirecting to /home');
+      console.log('[LOGIN] Redirecting to /bugs');
 
-      navigate('/home');
+      navigate('/bugs');
     } catch (err) {
       console.error('[LOGIN] Login failed:', err.message);
       setError(err.message || 'Login failed. Please try again.');
@@ -69,7 +69,7 @@ const Login = () => {
     <div className="login-container">
       <div className="login-box">
         <div className="login-header">
-          <h1 className="login-title">Release Notes Generator</h1>
+          <h1 className="login-title">ReleaseNotegenerator</h1>
           <p className="login-subtitle">Sign in to continue</p>
         </div>
 

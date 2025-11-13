@@ -22,51 +22,51 @@ type BugsbyMetadata struct {
 // BugsbyBug represents a bug from the Bugsby API
 // This structure matches the actual Bugsby v3 API response
 type BugsbyBug struct {
-	ID                  int        `json:"id"`
-	Alias               *string    `json:"alias"`
-	ReportedBy          string     `json:"reportedBy"`
-	ReportedTime        time.Time  `json:"reportedTime"`
-	LastUpdateTime      time.Time  `json:"lastUpdateTime"`
-	LastOpenedTime      time.Time  `json:"lastOpenedTime"`
-	LastClosedTime      *time.Time `json:"lastClosedTime"`
-	LastDiffed          time.Time  `json:"lastDiffed"`
-	Package             string     `json:"package"`
-	IssueType           string     `json:"issueType"`
-	Product             string     `json:"product"`
-	Component           string     `json:"component"`
-	Deadline            *time.Time `json:"deadline"`
-	Version             string     `json:"version"`
-	ScheduleKey         *string    `json:"scheduleKey"`
-	Priority            string     `json:"priority"`
-	Severity            string     `json:"severity"`
-	Title               string     `json:"title"`
-	Assignee            string     `json:"assignee"`
-	Status              string     `json:"status"`
-	Resolution          string     `json:"resolution"`
-	FixList             []string   `json:"fixList"`
-	FixListGerrit       []string   `json:"fixListGerrit"`
-	MultiRepoFixList    []string   `json:"multiRepoFixList"`
-	ReviewList          []string   `json:"reviewList"`
-	FixListReviewboard  *string    `json:"fixListReviewboard"`
-	TargetMilestone     string     `json:"targetMilestone"`
-	ReleaseNote         *string    `json:"releaseNote"`
-	ReleaseNoteApproval *bool      `json:"releaseNoteApproval"`
-	Description         string     `json:"description"`
-	EstimatedTime       float64    `json:"estimatedTime"`
-	RemainingTime       float64    `json:"remainingTime"`
-	Blocks              []int      `json:"blocks"`
-	DependsOn           []int      `json:"dependsOn"`
-	Supersedes          []int      `json:"supersedes"`
-	SupersededBys       []int      `json:"supersededBys"`
-	DuplicateOf         *int       `json:"duplicateOf"`
-	DuplicatedBys       []int      `json:"duplicatedBys"`
-	VersionsFixed       []string   `json:"versionsFixed"`
-	VersionsIntroduced  []string   `json:"versionsIntroduced"`
-	AffectedCategories  []int      `json:"affectedCategories"`
-	AffectedPlatforms   []int      `json:"affectedPlatforms"` // Changed from []string to []int
-	Watchers            []string   `json:"watchers"`
-	ChainHead           *int       `json:"chainHead"`
-	Chain               []int      `json:"chain"`
+	ID                  int         `json:"id"`
+	Alias               *string     `json:"alias"`
+	ReportedBy          string      `json:"reportedBy"`
+	ReportedTime        time.Time   `json:"reportedTime"`
+	LastUpdateTime      time.Time   `json:"lastUpdateTime"`
+	LastOpenedTime      time.Time   `json:"lastOpenedTime"`
+	LastClosedTime      *time.Time  `json:"lastClosedTime"`
+	LastDiffed          time.Time   `json:"lastDiffed"`
+	Package             string      `json:"package"`
+	IssueType           string      `json:"issueType"`
+	Product             string      `json:"product"`
+	Component           string      `json:"component"`
+	Deadline            *time.Time  `json:"deadline"`
+	Version             string      `json:"version"`
+	ScheduleKey         *string     `json:"scheduleKey"`
+	Priority            string      `json:"priority"`
+	Severity            string      `json:"severity"`
+	Title               string      `json:"title"`
+	Assignee            string      `json:"assignee"`
+	Status              string      `json:"status"`
+	Resolution          string      `json:"resolution"`
+	FixList             []string    `json:"fixList"`
+	FixListGerrit       []string    `json:"fixListGerrit"`
+	MultiRepoFixList    []string    `json:"multiRepoFixList"`
+	ReviewList          []string    `json:"reviewList"`
+	FixListReviewboard  interface{} `json:"fixListReviewboard"` // Can be string or number from Bugsby API
+	TargetMilestone     string      `json:"targetMilestone"`
+	ReleaseNote         *string     `json:"releaseNote"`
+	ReleaseNoteApproval *bool       `json:"releaseNoteApproval"`
+	Description         string      `json:"description"`
+	EstimatedTime       float64     `json:"estimatedTime"`
+	RemainingTime       float64     `json:"remainingTime"`
+	Blocks              []int       `json:"blocks"`
+	DependsOn           []int       `json:"dependsOn"`
+	Supersedes          []int       `json:"supersedes"`
+	SupersededBys       []int       `json:"supersededBys"`
+	DuplicateOf         *int        `json:"duplicateOf"`
+	DuplicatedBys       []int       `json:"duplicatedBys"`
+	VersionsFixed       []string    `json:"versionsFixed"`
+	VersionsIntroduced  []string    `json:"versionsIntroduced"`
+	AffectedCategories  []int       `json:"affectedCategories"`
+	AffectedPlatforms   []int       `json:"affectedPlatforms"` // Changed from []string to []int
+	Watchers            []string    `json:"watchers"`
+	ChainHead           *int        `json:"chainHead"`
+	Chain               []int       `json:"chain"`
 }
 
 // BugsbyComment represents a comment from the Bugsby API v1

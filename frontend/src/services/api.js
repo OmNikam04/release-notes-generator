@@ -25,12 +25,26 @@ const apiCall = async (endpoint, method = 'GET', body = null) => {
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.message || 'API request failed');
+      // Handle different error types
+      let errorMessage = data.message || 'API request failed';
+
+      if (response.status === 401) {
+        errorMessage = 'Unauthorized: ' + (data.message || 'Please login again');
+      } else if (response.status === 403) {
+        errorMessage = 'Forbidden: ' + (data.message || 'You do not have permission');
+      } else if (response.status === 404) {
+        errorMessage = 'Not found: ' + (data.message || 'Resource not found');
+      } else if (response.status === 500) {
+        errorMessage = 'Server error: ' + (data.message || 'Please try again later');
+      }
+
+      console.error(`[API Error] ${method} ${endpoint} - Status: ${response.status} - Message: ${errorMessage}`);
+      throw new Error(errorMessage);
     }
 
     return data;
   } catch (error) {
-    console.error(`API Error [${method} ${endpoint}]:`, error);
+    console.error(`[API Error] [${method} ${endpoint}]:`, error.message);
     throw error;
   }
 };
@@ -106,7 +120,7 @@ export const authAPI = {
 
 // Bugs API calls
 export const bugsAPI = {
-  // Get all bugs with optional filters
+  // Get all bugs with optional filters (from /bugs endpoint)
   getBugs: async (filters = {}) => {
     console.log('[API] Fetching bugs from backend with filters:', filters);
 
@@ -132,6 +146,65 @@ export const bugsAPI = {
       return response.data;
     } catch (error) {
       console.error('[API] Failed to fetch bugs:', error.message);
+      throw error;
+    }
+  },
+
+  // Get release notes with bugs (Kanban view) - GET /release-notes
+  getReleaseNotes: async (filters = {}) => {
+    console.log('[API] Fetching release notes (Kanban view) with filters:', filters);
+
+    try {
+      // Build query string from filters
+      const queryParams = new URLSearchParams();
+      if (filters.status) queryParams.append('status', filters.status);
+      if (filters.release) queryParams.append('release', filters.release);
+      if (filters.component) queryParams.append('component', filters.component);
+      if (filters.assigned_to_me) queryParams.append('assigned_to_me', filters.assigned_to_me);
+      if (filters.manager_id) queryParams.append('manager_id', filters.manager_id);
+      if (filters.page) queryParams.append('page', filters.page);
+      if (filters.limit) queryParams.append('limit', filters.limit);
+      if (filters.sort_by) queryParams.append('sort_by', filters.sort_by);
+      if (filters.sort_order) queryParams.append('sort_order', filters.sort_order);
+
+      const queryString = queryParams.toString();
+      const endpoint = queryString ? `/release-notes?${queryString}` : '/release-notes';
+
+      const response = await apiCall(endpoint, 'GET');
+
+      console.log('[API] Release notes data from DB:', response.data);
+      console.log('[API] Total release notes:', response.data.pagination?.total || response.data.release_notes?.length);
+      return response.data;
+    } catch (error) {
+      console.error('[API] Failed to fetch release notes:', error.message);
+      throw error;
+    }
+  },
+
+  // Get bugs by status (for Kanban columns)
+  getBugsByStatus: async (status, filters = {}) => {
+    console.log('[API] Fetching bugs by status:', status, 'with filters:', filters);
+
+    try {
+      const queryParams = new URLSearchParams();
+      queryParams.append('status', status);
+      if (filters.release) queryParams.append('release', filters.release);
+      if (filters.severity) queryParams.append('severity', filters.severity);
+      if (filters.bug_type) queryParams.append('bug_type', filters.bug_type);
+      if (filters.assigned_to) queryParams.append('assigned_to', filters.assigned_to);
+      if (filters.manager_id) queryParams.append('manager_id', filters.manager_id);
+      if (filters.page) queryParams.append('page', filters.page);
+      if (filters.limit) queryParams.append('limit', filters.limit);
+
+      const queryString = queryParams.toString();
+      const endpoint = `/bugs?${queryString}`;
+
+      const response = await apiCall(endpoint, 'GET');
+
+      console.log('[API] Bugs with status', status, ':', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('[API] Failed to fetch bugs by status:', error.message);
       throw error;
     }
   },
@@ -197,5 +270,162 @@ export const bugsAPI = {
   },
 };
 
-export default { authAPI, bugsAPI };
+// Release Notes API calls
+export const releaseNotesAPI = {
+  // Get release notes by status (for Kanban columns)
+  getByStatus: async (status, filters = {}) => {
+    console.log('[API] Fetching release notes by status:', status, 'with filters:', filters);
+
+    try {
+      const queryParams = new URLSearchParams();
+      queryParams.append('status', status);
+      if (filters.release) queryParams.append('release', filters.release);
+      if (filters.component) queryParams.append('component', filters.component);
+      if (filters.assigned_to_me) queryParams.append('assigned_to_me', filters.assigned_to_me);
+      if (filters.manager_id) queryParams.append('manager_id', filters.manager_id);
+      if (filters.page) queryParams.append('page', filters.page);
+      if (filters.limit) queryParams.append('limit', filters.limit);
+      if (filters.sort_by) queryParams.append('sort_by', filters.sort_by);
+      if (filters.sort_order) queryParams.append('sort_order', filters.sort_order);
+
+      const queryString = queryParams.toString();
+      const endpoint = `/release-notes?${queryString}`;
+
+      const response = await apiCall(endpoint, 'GET');
+
+      console.log('[API] Release notes with status', status, ':', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('[API] Failed to fetch release notes by status:', error.message);
+      throw error;
+    }
+  },
+
+  // Get all release notes (Kanban view)
+  getAll: async (filters = {}) => {
+    console.log('[API] Fetching all release notes with filters:', filters);
+
+    try {
+      const queryParams = new URLSearchParams();
+      if (filters.release) queryParams.append('release', filters.release);
+      if (filters.component) queryParams.append('component', filters.component);
+      if (filters.assigned_to_me) queryParams.append('assigned_to_me', filters.assigned_to_me);
+      if (filters.manager_id) queryParams.append('manager_id', filters.manager_id);
+      if (filters.page) queryParams.append('page', filters.page);
+      if (filters.limit) queryParams.append('limit', filters.limit);
+      if (filters.sort_by) queryParams.append('sort_by', filters.sort_by);
+      if (filters.sort_order) queryParams.append('sort_order', filters.sort_order);
+
+      const queryString = queryParams.toString();
+      const endpoint = queryString ? `/release-notes?${queryString}` : '/release-notes';
+
+      const response = await apiCall(endpoint, 'GET');
+
+      console.log('[API] All release notes:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('[API] Failed to fetch all release notes:', error.message);
+      throw error;
+    }
+  },
+};
+
+// Bugsby Sync API calls (Manager only)
+export const syncAPI = {
+  // Sync a single bug by Bugsby ID
+  syncBugById: async (bugsby_id) => {
+    console.log('[API] Syncing single bug by ID:', bugsby_id);
+
+    try {
+      const response = await apiCall(`/bugsby/sync/${bugsby_id}`, 'POST');
+      console.log('[API] Bug synced successfully:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('[API] Failed to sync bug:', error.message);
+      throw error;
+    }
+  },
+
+  // Sync all bugs for a release
+  syncRelease: async (filters = {}) => {
+    console.log('[API] Syncing release with filters:', filters);
+
+    try {
+      const body = {
+        release: filters.release,
+      };
+
+      if (filters.status) body.status = filters.status;
+      if (filters.severity) body.severity = filters.severity;
+      if (filters.bug_type) body.bug_type = filters.bug_type;
+      if (filters.component) body.component = filters.component;
+
+      const response = await apiCall('/bugsby/sync', 'POST', body);
+      console.log('[API] Release synced successfully:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('[API] Failed to sync release:', error.message);
+      throw error;
+    }
+  },
+
+  // Get sync status for a release
+  getSyncStatus: async (release) => {
+    console.log('[API] Getting sync status for release:', release);
+
+    try {
+      const queryParams = new URLSearchParams();
+      queryParams.append('release', release);
+
+      const response = await apiCall(`/bugsby/status?${queryParams.toString()}`, 'GET');
+      console.log('[API] Sync status retrieved:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('[API] Failed to get sync status:', error.message);
+      throw error;
+    }
+  },
+
+  // Custom Bugsby Query (Query 11 - Testing endpoint, no auth required)
+  customBugsbyQuery: async (queryData) => {
+    console.log('[API] Executing custom Bugsby query:', queryData);
+
+    try {
+      const body = {
+        query: queryData.query,
+        limit: queryData.limit || '100',
+        sortBy: queryData.sortBy || 'lastUpdateTime',
+        order: queryData.order || 'desc',
+        source: queryData.source || 'mysql',
+        textQueryMode: queryData.textQueryMode || 'default'
+      };
+
+      const response = await apiCall('/bugsby-api/bugs/query', 'POST', body);
+      console.log('[API] Custom query executed successfully:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('[API] Failed to execute custom query:', error.message);
+      throw error;
+    }
+  },
+
+  // Get Bugs by Assignee (Query 10 - Testing endpoint, no auth required)
+  getBugsByAssignee: async (email, limit = 100) => {
+    console.log('[API] Getting bugs for assignee:', email);
+
+    try {
+      const queryParams = new URLSearchParams();
+      queryParams.append('limit', limit);
+
+      const response = await apiCall(`/bugsby-api/bugs/assignee/${email}?${queryParams.toString()}`, 'GET');
+      console.log('[API] Bugs retrieved for assignee:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('[API] Failed to get bugs by assignee:', error.message);
+      throw error;
+    }
+  },
+};
+
+export default { authAPI, bugsAPI, releaseNotesAPI, syncAPI };
 

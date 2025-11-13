@@ -452,14 +452,15 @@ func (h *BugHandler) GetBugsByAssignee(c *fiber.Ctx) error {
 
 	logger.Info().
 		Str("email", email).
-		Int("bugs_count", len(bugsbyResp.Bugs)).
+		Int("bugs_returned", len(bugsbyResp.Bugs)).
 		Bool("has_next", bugsbyResp.Metadata.HasNext).
 		Msg("Successfully fetched bugs from Bugsby")
 
 	// Return response with metadata
+	// Note: Bugsby API doesn't return total count, only paginated results
 	return c.Status(fiber.StatusOK).JSON(dto.SuccessResponse{
 		Success: true,
-		Message: fmt.Sprintf("Found %d bugs for %s", len(bugsbyResp.Bugs), email),
+		Message: fmt.Sprintf("Found %d bugs for %s (page result)", len(bugsbyResp.Bugs), email),
 		Data: fiber.Map{
 			"bugs":      bugsbyResp.Bugs,
 			"count":     len(bugsbyResp.Bugs),
@@ -576,14 +577,15 @@ func (h *BugHandler) GetBugsByCustomQuery(c *fiber.Ctx) error {
 
 	logger.Info().
 		Str("query", req.Query).
-		Int("bugs_count", len(bugsbyResp.Bugs)).
+		Int("bugs_returned", len(bugsbyResp.Bugs)).
 		Bool("has_next", bugsbyResp.Metadata.HasNext).
 		Msg("Successfully executed Bugsby query")
 
 	// Return response with metadata
+	// Note: Bugsby API doesn't return total count, only paginated results
 	return c.Status(fiber.StatusOK).JSON(dto.SuccessResponse{
 		Success: true,
-		Message: fmt.Sprintf("Found %d bugs", len(bugsbyResp.Bugs)),
+		Message: fmt.Sprintf("Found %d bugs (page result)", len(bugsbyResp.Bugs)),
 		Data: fiber.Map{
 			"bugs":      bugsbyResp.Bugs,
 			"count":     len(bugsbyResp.Bugs),

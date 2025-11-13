@@ -2,8 +2,8 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { Provider } from 'react-redux'
 import store from './store/store'
 import Login from './pages/Login'
-import Home from './pages/Home'
 import MyBugs from './pages/MyBugs'
+import ReleaseAdmin from './pages/ReleaseAdmin'
 import './App.css'
 
 function App() {
@@ -13,8 +13,8 @@ function App() {
         <div className="app">
           <Routes>
             <Route path="/" element={<Login />} />
-            <Route path="/home" element={<Home />} />
-            <Route path="/mybugs" element={<MyBugs />} />
+            <Route path="/bugs" element={<MyBugs />} />
+            <Route path="/releaseadmin" element={<ReleaseAdmin />} />
           </Routes>
         </div>
       </Router>
