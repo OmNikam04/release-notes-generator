@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  api:
+    build: .
+    container_name: release-notest-generator-api
+    ports:
+      - "0.0.0.0:8080:8080"
+    env_file:
+      - .env
+    volumes:
+      - .:/app                    # Mount source code for live reload
+      - /app/tmp                  # Exclude tmp directory (Air's build artifacts)
+    command: ["air", "-c", ".air.toml"]
