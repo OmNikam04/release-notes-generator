@@ -63,10 +63,45 @@ type BugsbyBug struct {
 	VersionsFixed       []string   `json:"versionsFixed"`
 	VersionsIntroduced  []string   `json:"versionsIntroduced"`
 	AffectedCategories  []int      `json:"affectedCategories"`
-	AffectedPlatforms   []string   `json:"affectedPlatforms"`
+	AffectedPlatforms   []int      `json:"affectedPlatforms"` // Changed from []string to []int
 	Watchers            []string   `json:"watchers"`
 	ChainHead           *int       `json:"chainHead"`
 	Chain               []int      `json:"chain"`
+}
+
+// BugsbyComment represents a comment from the Bugsby API v1
+// Note: Comments API uses v1, not v3!
+// The actual API response uses 'the_text' and 'epoch_time' fields
+type BugsbyComment struct {
+	ID        int    `json:"id"`
+	BugID     int    `json:"bugId"`
+	User      string `json:"user"`
+	Text      string `json:"the_text"` // API uses 'the_text', not 'text'
+	EpochTime int64  `json:"epoch_time"`
+	RealName  string `json:"real_name"`
+	IsNoisy   bool   `json:"is_noisy"`
+}
+
+// BugsbyCommentsResponse represents the response from Bugsby comments API
+type BugsbyCommentsResponse struct {
+	Comments []BugsbyComment `json:"comments"`
+	Count    int             `json:"count,omitempty"`
+	Metadata BugsbyMetadata  `json:"metadata,omitempty"`
+}
+
+// ParsedCommitInfo represents extracted commit information from gerrit comment
+type ParsedCommitInfo struct {
+	CommitHash  string    `json:"commit_hash"`
+	GerritURL   string    `json:"gerrit_url"`
+	Repository  string    `json:"repository"`
+	Branch      string    `json:"branch"`
+	Title       string    `json:"title"`
+	Message     string    `json:"message"`
+	ChangeID    string    `json:"change_id"`
+	MergedBy    string    `json:"merged_by"`
+	FullText    string    `json:"full_text"`
+	CommentID   int       `json:"comment_id"`
+	CommentedAt time.Time `json:"commented_at"`
 }
 
 // BugsbyQuery represents query parameters for Bugsby API

@@ -44,6 +44,11 @@ type Client interface {
 	Query(ctx context.Context, query string, limit int) (*BugsbyResponse, error)
 	GetBugByID(ctx context.Context, bugID int) (*BugsbyBug, error)
 	GetBugsByRelease(ctx context.Context, release string, filters *BugFilters) (*BugsbyResponse, error)
+
+	// Comments API (uses v1, not v3!)
+	GetBugComments(ctx context.Context, bugID int) (*BugsbyCommentsResponse, error)
+	GetBugCommentsFiltered(ctx context.Context, bugID int, user string) (*BugsbyCommentsResponse, error)
+	ParseCommitInfo(comment *BugsbyComment) *ParsedCommitInfo
 }
 
 // client is the concrete implementation of Client
@@ -385,4 +390,179 @@ func (c *client) GetBugsByRelease(ctx context.Context, release string, filters *
 		Msg("Fetching bugs from Bugsby")
 
 	return c.Query(ctx, query, 1000) // Default limit for release queries
+}
+
+// GetBugComments retrieves all comments for a specific bug
+// Note: Comments API uses v1, not v3!
+func (c *client) GetBugComments(ctx context.Context, bugID int) (*BugsbyCommentsResponse, error) {
+	return c.GetBugCommentsFiltered(ctx, bugID, "")
+}
+
+// GetBugCommentsFiltered retrieves comments for a bug filtered by user
+// Note: Comments API uses v1, not v3!
+// The v1 comments API uses 'bug' parameter, not 'bugId' or query syntax
+// Note: The API's user filter doesn't work reliably, so we fetch all comments and filter client-side
+func (c *client) GetBugCommentsFiltered(ctx context.Context, bugID int, user string) (*BugsbyCommentsResponse, error) {
+	// Build params - v1 comments API uses 'bug' parameter, not query syntax
+	params := map[string]string{
+		"bug":   fmt.Sprintf("%d", bugID),
+		"limit": "1000", // Get all comments
+	}
+
+	// Note: We don't use the 'user' parameter because the API filter doesn't work reliably
+	// Instead, we'll filter the results client-side
+
+	// Use v1 for comments API
+	url := fmt.Sprintf("%s/v1/comments", c.baseURL)
+	url = addQueryParams(url, params)
+	headers := c.buildHeaders(nil)
+
+	logger.Info().
+		Int("bug_id", bugID).
+		Str("user_filter", user).
+		Msg("Fetching comments from Bugsby v1 API")
+
+	resp, err := c.doRequestWithRetry(ctx, "GET", url, headers, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get comments for bug %d: %w", bugID, err)
+	}
+
+	var result BugsbyCommentsResponse
+	if err := parseResponse(resp, &result); err != nil {
+		return nil, err
+	}
+
+	// Filter comments by user if specified (client-side filtering)
+	if user != "" {
+		filteredComments := make([]BugsbyComment, 0)
+		for _, comment := range result.Comments {
+			if comment.User == user {
+				filteredComments = append(filteredComments, comment)
+			}
+		}
+		result.Comments = filteredComments
+	}
+
+	logger.Info().
+		Int("bug_id", bugID).
+		Int("total_comments", len(result.Comments)).
+		Str("user_filter", user).
+		Msg("Successfully fetched and filtered comments from Bugsby")
+
+	return &result, nil
+}
+
+// ParseCommitInfo extracts commit information from a gerrit comment
+// Expected format:
+// om.nikam committed https://gerrit.corp.arista.io/c/ardc-config/+/524253 in ardc-config.git (master):
+//
+// jobs: Support ITEST-HANDLER on older release branches
+//
+// As we changed the original wm-itest-on-src-gerrit-ps job to support
+// gerrit checks, but the older release branch won't be able to use the
+// same newer job as the autocast is not done.
+// ...
+// Fixes: BUG1313034
+// Change-Id: I77c0e7277d43c75c79730ff61f303eea83136f2f
+// Merged-By:om.nikam
+func (c *client) ParseCommitInfo(comment *BugsbyComment) *ParsedCommitInfo {
+	if comment == nil {
+		return nil
+	}
+
+	// Convert epoch time to time.Time
+	commentedAt := time.Unix(comment.EpochTime, 0)
+
+	info := &ParsedCommitInfo{
+		CommentID:   comment.ID,
+		CommentedAt: commentedAt,
+		FullText:    comment.Text,
+	}
+
+	lines := strings.Split(comment.Text, "\n")
+	if len(lines) == 0 {
+		return info
+	}
+
+	// Parse first line: "om.nikam committed https://gerrit.corp.arista.io/c/ardc-config/+/524253 in ardc-config.git (master):"
+	firstLine := lines[0]
+
+	// Extract Gerrit URL
+	if strings.Contains(firstLine, "https://gerrit.corp.arista.io") {
+		parts := strings.Fields(firstLine)
+		for _, part := range parts {
+			if strings.HasPrefix(part, "https://gerrit.corp.arista.io") {
+				info.GerritURL = strings.TrimSpace(part)
+				// Extract commit hash from URL (e.g., /+/524253)
+				if idx := strings.LastIndex(info.GerritURL, "/+/"); idx != -1 {
+					info.CommitHash = info.GerritURL[idx+3:]
+				}
+				break
+			}
+		}
+	}
+
+	// Extract repository (e.g., "ardc-config.git")
+	if strings.Contains(firstLine, " in ") && strings.Contains(firstLine, ".git") {
+		parts := strings.Split(firstLine, " in ")
+		if len(parts) > 1 {
+			repoPart := parts[1]
+			if idx := strings.Index(repoPart, ".git"); idx != -1 {
+				info.Repository = repoPart[:idx+4]
+			}
+		}
+	}
+
+	// Extract branch (e.g., "(master)")
+	if strings.Contains(firstLine, "(") && strings.Contains(firstLine, ")") {
+		start := strings.Index(firstLine, "(")
+		end := strings.Index(firstLine, ")")
+		if start != -1 && end != -1 && end > start {
+			info.Branch = firstLine[start+1 : end]
+		}
+	}
+
+	// Parse commit message
+	var messageLines []string
+	var titleFound bool
+
+	for i := 1; i < len(lines); i++ {
+		line := lines[i]
+		trimmed := strings.TrimSpace(line)
+
+		// Skip empty lines at the beginning
+		if !titleFound && trimmed == "" {
+			continue
+		}
+
+		// First non-empty line is the title
+		if !titleFound && trimmed != "" {
+			info.Title = trimmed
+			titleFound = true
+			continue
+		}
+
+		// Extract Change-Id
+		if strings.HasPrefix(trimmed, "Change-Id:") {
+			info.ChangeID = strings.TrimSpace(strings.TrimPrefix(trimmed, "Change-Id:"))
+			continue
+		}
+
+		// Extract Merged-By
+		if strings.HasPrefix(trimmed, "Merged-By:") {
+			info.MergedBy = strings.TrimSpace(strings.TrimPrefix(trimmed, "Merged-By:"))
+			continue
+		}
+
+		// Add to message (skip metadata lines)
+		if !strings.HasPrefix(trimmed, "Fixes:") &&
+			!strings.HasPrefix(trimmed, "Change-Id:") &&
+			!strings.HasPrefix(trimmed, "Merged-By:") {
+			messageLines = append(messageLines, line)
+		}
+	}
+
+	info.Message = strings.TrimSpace(strings.Join(messageLines, "\n"))
+
+	return info
 }

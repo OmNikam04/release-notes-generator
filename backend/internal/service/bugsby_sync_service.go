@@ -17,6 +17,7 @@ import (
 type BugsbySyncService interface {
 	SyncRelease(ctx context.Context, release string, filters *bugsby.BugFilters) (*SyncResult, error)
 	SyncBugByID(ctx context.Context, bugsbyID int) (*models.Bug, error)
+	SyncByQuery(ctx context.Context, query string, limit int) (*SyncResult, error)
 	GetSyncStatus(release string) (*SyncStatus, error)
 }
 
@@ -158,6 +159,73 @@ func (s *bugsbySyncService) SyncBugByID(ctx context.Context, bugsbyID int) (*mod
 	}
 
 	return bug, nil
+}
+
+// SyncByQuery syncs bugs using a custom Bugsby query string
+func (s *bugsbySyncService) SyncByQuery(ctx context.Context, query string, limit int) (*SyncResult, error) {
+	logger.Info().Str("query", query).Int("limit", limit).Msg("Starting Bugsby sync by custom query")
+
+	result := &SyncResult{
+		SyncedAt: time.Now(),
+		Errors:   []string{},
+	}
+
+	// Set default limit if not provided
+	if limit <= 0 {
+		limit = 100
+	}
+
+	// Fetch bugs from Bugsby using custom query
+	bugsbyResp, err := s.bugsbyClient.Query(ctx, query, limit)
+	if err != nil {
+		logger.Error().Err(err).Str("query", query).Msg("Failed to fetch bugs from Bugsby")
+		return nil, fmt.Errorf("failed to fetch bugs from Bugsby: %w", err)
+	}
+
+	result.TotalFetched = len(bugsbyResp.Bugs)
+	logger.Info().Int("count", result.TotalFetched).Msg("Fetched bugs from Bugsby")
+
+	if result.TotalFetched == 0 {
+		logger.Info().Msg("No bugs found for query")
+		return result, nil
+	}
+
+	// Extract unique emails and ensure users exist
+	emails := bugsby.ExtractUniqueEmails(bugsbyResp.Bugs)
+	userEmailToIDMap, err := s.ensureUsersExist(emails)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to ensure users exist")
+		// Continue with sync even if user mapping fails
+	}
+
+	// Sync each bug
+	for i := range bugsbyResp.Bugs {
+		bugsbyBug := &bugsbyResp.Bugs[i]
+		if err := s.syncSingleBug(bugsbyBug, userEmailToIDMap); err != nil {
+			logger.Error().
+				Err(err).
+				Int("bugsby_id", bugsbyBug.ID).
+				Msg("Failed to sync bug")
+			result.FailedBugs++
+			result.Errors = append(result.Errors, fmt.Sprintf("Bug %d: %v", bugsbyBug.ID, err))
+			continue
+		}
+
+		// Check if it was a new bug or update
+		// This is a simple heuristic - could be improved
+		result.NewBugs++
+	}
+
+	result.UpdatedBugs = result.TotalFetched - result.NewBugs - result.FailedBugs
+
+	logger.Info().
+		Int("total", result.TotalFetched).
+		Int("new", result.NewBugs).
+		Int("updated", result.UpdatedBugs).
+		Int("failed", result.FailedBugs).
+		Msg("Sync by query completed")
+
+	return result, nil
 }
 
 // GetSyncStatus returns the sync status for a release

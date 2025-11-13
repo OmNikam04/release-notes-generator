@@ -25,6 +25,11 @@ func RunMigrations(db *gorm.DB) error {
 		return fmt.Errorf("failed to migrate models: %w", err)
 	}
 
+	// Run post-migration fixes AFTER auto-migrate
+	if err := runPostMigrationFixes(db); err != nil {
+		return fmt.Errorf("failed to run post-migration fixes: %w", err)
+	}
+
 	fmt.Println("✅ Database migrations completed successfully")
 	return nil
 }
@@ -105,6 +110,71 @@ func runCustomMigrations(db *gorm.DB) error {
 
 	log.Println("✅ Custom migrations completed")
 	return nil
+}
+
+// runPostMigrationFixes runs migrations that need to happen AFTER AutoMigrate
+// This is for fixing column types that AutoMigrate doesn't handle
+func runPostMigrationFixes(db *gorm.DB) error {
+	log.Println("🔧 Running post-migration fixes...")
+
+	if !db.Migrator().HasTable(&models.Bug{}) {
+		log.Println("⚠️  Bugs table does not exist, skipping post-migration fixes")
+		return nil
+	}
+
+	// Fix 1: Alter bugsby_id column type from varchar(10) to varchar(50)
+	// This is needed because bug IDs from Bugsby can be 6-7 digits
+	// AutoMigrate doesn't change existing column types, so we need to do it manually
+	alterColumnIfNeeded(db, "bugs", "bugsby_id", 10, 50)
+
+	// Fix 2: Alter priority column type from varchar(10) to varchar(50)
+	// This is needed because Bugsby may return priority values longer than 10 characters
+	alterColumnIfNeeded(db, "bugs", "priority", 10, 50)
+
+	log.Println("✅ Post-migration fixes completed")
+	return nil
+}
+
+// alterColumnIfNeeded checks if a column needs to be altered and alters it if necessary
+func alterColumnIfNeeded(db *gorm.DB, tableName, columnName string, oldLength, newLength int) {
+	var result struct {
+		DataType               string
+		CharacterMaximumLength *int
+	}
+	err := db.Raw(`
+		SELECT data_type, character_maximum_length
+		FROM information_schema.columns
+		WHERE table_schema = CURRENT_SCHEMA()
+		AND table_name = ?
+		AND column_name = ?
+	`, tableName, columnName).Scan(&result).Error
+
+	if err != nil {
+		log.Printf("❌ Could not check %s.%s column type: %v", tableName, columnName, err)
+		return
+	}
+
+	// Log the current column type with proper dereferencing
+	if result.CharacterMaximumLength != nil {
+		log.Printf("🔍 Current %s.%s column type: %s(%d)", tableName, columnName, result.DataType, *result.CharacterMaximumLength)
+	} else {
+		log.Printf("🔍 Current %s.%s column type: %s(NULL)", tableName, columnName, result.DataType)
+	}
+
+	// Check if it needs to be altered
+	if result.DataType == "character varying" && result.CharacterMaximumLength != nil && *result.CharacterMaximumLength == oldLength {
+		// Column exists and is varchar(oldLength), need to alter it
+		log.Printf("⚠️  %s.%s column is varchar(%d), altering to varchar(%d)...", tableName, columnName, oldLength, newLength)
+		if err := db.Exec(fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s TYPE varchar(%d)", tableName, columnName, newLength)).Error; err != nil {
+			log.Printf("❌ Failed to alter %s.%s column type: %v", tableName, columnName, err)
+		} else {
+			log.Printf("✅ Altered %s.%s column from varchar(%d) to varchar(%d)", tableName, columnName, oldLength, newLength)
+		}
+	} else if result.CharacterMaximumLength != nil && *result.CharacterMaximumLength == newLength {
+		log.Printf("✅ %s.%s column is already varchar(%d), no migration needed", tableName, columnName, newLength)
+	} else if result.CharacterMaximumLength != nil {
+		log.Printf("ℹ️  %s.%s column is varchar(%d), no migration needed", tableName, columnName, *result.CharacterMaximumLength)
+	}
 }
 
 // createGINIndexes creates GIN indexes for JSONB columns

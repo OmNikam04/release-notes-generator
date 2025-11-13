@@ -119,6 +119,64 @@ func (h *BugHandler) SyncBugByID(c *fiber.Ctx) error {
 	})
 }
 
+// SyncByQuery syncs bugs using a custom Bugsby query
+// POST /api/v1/bugsby/sync-by-query
+func (h *BugHandler) SyncByQuery(c *fiber.Ctx) error {
+	var req dto.SyncByQueryRequest
+
+	if err := c.BodyParser(&req); err != nil {
+		logger.Error().Err(err).Msg("Invalid request body")
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
+			Error:   "invalid_request",
+			Message: "Invalid request body",
+		})
+	}
+
+	// Validate request
+	if err := ValidateStruct(c, &req); err != nil {
+		return err
+	}
+
+	// Set default limit if not provided
+	limit := req.Limit
+	if limit <= 0 {
+		limit = 100
+	}
+
+	// Perform sync
+	result, err := h.bugsbySyncService.SyncByQuery(c.Context(), req.Query, limit)
+	if err != nil {
+		logger.Error().Err(err).Str("query", req.Query).Msg("Failed to sync bugs by query")
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
+			Error:   "sync_failed",
+			Message: err.Error(),
+		})
+	}
+
+	logger.Info().
+		Str("query", req.Query).
+		Int("total", result.TotalFetched).
+		Int("new", result.NewBugs).
+		Int("updated", result.UpdatedBugs).
+		Int("failed", result.FailedBugs).
+		Msg("Bugs synced successfully by query")
+
+	response := &dto.SyncResultResponse{
+		TotalFetched: result.TotalFetched,
+		NewBugs:      result.NewBugs,
+		UpdatedBugs:  result.UpdatedBugs,
+		FailedBugs:   result.FailedBugs,
+		SyncedAt:     result.SyncedAt,
+		Errors:       result.Errors,
+	}
+
+	return c.Status(fiber.StatusOK).JSON(dto.SuccessResponse{
+		Success: true,
+		Message: "Bugs synced successfully",
+		Data:    response,
+	})
+}
+
 // GetSyncStatus gets the sync status for a release
 // GET /api/v1/bugsby/status?release=wifi-ooty
 func (h *BugHandler) GetSyncStatus(c *fiber.Ctx) error {

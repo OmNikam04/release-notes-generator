@@ -7,14 +7,15 @@ import (
 	"github.com/omnikam04/release-notes-generator/internal/models"
 )
 
-// ReleaseNoteResponse is a placeholder - will be implemented later
+// ReleaseNoteResponse represents a simple release note in bug responses
 type ReleaseNoteResponse struct {
 	ID      uuid.UUID `json:"id"`
 	Content string    `json:"content"`
 	Status  string    `json:"status"`
+	Version int       `json:"version"`
 }
 
-// ToReleaseNoteResponse is a placeholder - will be implemented later
+// ToReleaseNoteResponse converts ReleaseNote model to simple response
 func ToReleaseNoteResponse(note *models.ReleaseNote) *ReleaseNoteResponse {
 	if note == nil {
 		return nil
@@ -23,6 +24,7 @@ func ToReleaseNoteResponse(note *models.ReleaseNote) *ReleaseNoteResponse {
 		ID:      note.ID,
 		Content: note.Content,
 		Status:  note.Status,
+		Version: note.Version,
 	}
 }
 
@@ -70,6 +72,12 @@ type SyncReleaseRequest struct {
 // SyncBugByIDRequest represents a request to sync a single bug
 type SyncBugByIDRequest struct {
 	BugsbyID int `json:"bugsby_id" validate:"required,min=1"`
+}
+
+// SyncByQueryRequest represents a request to sync bugs using a custom Bugsby query
+type SyncByQueryRequest struct {
+	Query string `json:"query" validate:"required"`
+	Limit int    `json:"limit,omitempty"` // Optional, defaults to 100
 }
 
 // SyncResultResponse represents the result of a sync operation

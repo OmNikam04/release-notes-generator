@@ -20,6 +20,7 @@ func SetupBugRoutes(router fiber.Router, h *Handlers, cfg *config.Config) {
 	bugsby.Use(middleware.RoleMiddleware("manager")) // Only managers can sync
 	bugsby.Post("/sync", h.BugHandler.SyncRelease)
 	bugsby.Post("/sync/:bugsby_id", h.BugHandler.SyncBugByID)
+	bugsby.Post("/sync-by-query", h.BugHandler.SyncByQuery)
 	bugsby.Get("/status", h.BugHandler.GetSyncStatus)
 
 	// Bug management endpoints

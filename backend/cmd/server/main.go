@@ -64,19 +64,23 @@ func main() {
 	userRepo := repository.NewUserRepository(database)
 	refreshRepo := repository.NewRefreshTokenRepository(database)
 	bugRepo := repository.NewBugRepository(database)
+	releaseNoteRepo := repository.NewReleaseNoteRepository(database)
 
 	// Initialize services
 	userService := service.NewUserService(userRepo, refreshRepo)
 	bugsbySyncService := service.NewBugsbySyncService(bugsbyClient, bugRepo, userRepo)
+	releaseNoteService := service.NewReleaseNoteService(releaseNoteRepo, bugRepo, bugsbyClient, database)
 
 	// Initialize handlers (pass config for JWT)
 	userHandler := handlers.NewUserHandler(userService, cfg)
 	bugHandler := handlers.NewBugHandler(bugsbySyncService, bugRepo, bugsbyClient)
+	releaseNoteHandler := handlers.NewReleaseNoteHandler(releaseNoteService)
 
 	// Create handlers struct for routing
 	routeHandlers := &routes.Handlers{
-		UserHandler: userHandler,
-		BugHandler:  bugHandler,
+		UserHandler:        userHandler,
+		BugHandler:         bugHandler,
+		ReleaseNoteHandler: releaseNoteHandler,
 	}
 
 	// Create Fiber app
