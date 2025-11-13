@@ -104,7 +104,27 @@ func runCustomMigrations(db *gorm.DB) error {
 		}
 	}
 
-	// Migration 3: Create GIN indexes for JSONB columns (for pattern matching)
+	// Migration 3: Drop 'generated_note' column from release_notes table if it exists
+	// This column was from old schema and is no longer used
+	if db.Migrator().HasColumn(&models.ReleaseNote{}, "generated_note") {
+		if err := db.Migrator().DropColumn(&models.ReleaseNote{}, "generated_note"); err != nil {
+			log.Printf("Warning: Failed to drop 'generated_note' column from release_notes: %v", err)
+		} else {
+			log.Println("✅ Dropped 'generated_note' column from release_notes table")
+		}
+	}
+
+	// Migration 4: Drop 'created_by' column from release_notes table if it exists
+	// This column was from old schema, replaced by 'created_by_id'
+	if db.Migrator().HasColumn(&models.ReleaseNote{}, "created_by") {
+		if err := db.Migrator().DropColumn(&models.ReleaseNote{}, "created_by"); err != nil {
+			log.Printf("Warning: Failed to drop 'created_by' column from release_notes: %v", err)
+		} else {
+			log.Println("✅ Dropped 'created_by' column from release_notes table")
+		}
+	}
+
+	// Migration 5: Create GIN indexes for JSONB columns (for pattern matching)
 	// These indexes improve performance for JSONB queries
 	createGINIndexes(db)
 

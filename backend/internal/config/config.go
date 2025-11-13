@@ -17,6 +17,11 @@ type Config struct {
 	BugsbyAPIURL    string
 	BugsbyAuthToken string
 	BugsbyTokenFile string
+
+	// Google Gemini AI Configuration
+	GCPProjectID string
+	GCPLocation  string
+	GeminiModel  string
 }
 
 func Load() (*Config, error) {
@@ -36,6 +41,11 @@ func Load() (*Config, error) {
 		BugsbyAPIURL:    viper.GetString("BUGSBY_API_URL"),
 		BugsbyAuthToken: viper.GetString("BUGSBY_AUTH_TOKEN"),
 		BugsbyTokenFile: viper.GetString("BUGSBY_TOKEN_FILE"),
+
+		// Google Gemini AI configuration
+		GCPProjectID: viper.GetString("GCP_PROJECT_ID"),
+		GCPLocation:  viper.GetString("GCP_LOCATION"),
+		GeminiModel:  viper.GetString("GEMINI_MODEL"),
 	}
 
 	// Validate required fields

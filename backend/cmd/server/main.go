@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -17,6 +18,7 @@ import (
 	"github.com/omnikam04/release-notes-generator/internal/config"
 	"github.com/omnikam04/release-notes-generator/internal/db"
 	"github.com/omnikam04/release-notes-generator/internal/external/bugsby"
+	"github.com/omnikam04/release-notes-generator/internal/external/gemini"
 	appLogger "github.com/omnikam04/release-notes-generator/internal/logger"
 	"github.com/omnikam04/release-notes-generator/internal/repository"
 	"github.com/omnikam04/release-notes-generator/internal/service"
@@ -60,6 +62,37 @@ func main() {
 	}
 	appLogger.Info().Msg("✅ Bugsby client initialized successfully")
 
+	// Initialize AI service (Gemini)
+	var aiService service.AIService
+	appLogger.Info().
+		Str("gcp_project_id", cfg.GCPProjectID).
+		Str("gcp_location", cfg.GCPLocation).
+		Str("gemini_model", cfg.GeminiModel).
+		Msg("🔍 Checking AI service configuration")
+
+	if cfg.GCPProjectID != "" && cfg.GCPLocation != "" {
+		appLogger.Info().Msg("🚀 Initializing AI service (Gemini)...")
+		ctx := context.Background()
+		aiService, err = service.NewAIService(ctx, &gemini.Config{
+			ProjectID: cfg.GCPProjectID,
+			Location:  cfg.GCPLocation,
+			Model:     cfg.GeminiModel,
+		})
+		if err != nil {
+			appLogger.Warn().Err(err).Msg("⚠️  Failed to initialize AI service, will use placeholder generation")
+			aiService = nil
+		} else {
+			appLogger.Info().
+				Str("model", cfg.GeminiModel).
+				Msg("✅ AI service (Gemini) initialized successfully")
+		}
+	} else {
+		appLogger.Warn().
+			Str("gcp_project_id", cfg.GCPProjectID).
+			Str("gcp_location", cfg.GCPLocation).
+			Msg("⚠️  AI service not configured (missing GCP credentials), will use placeholder generation")
+	}
+
 	// Initialize repositories
 	userRepo := repository.NewUserRepository(database)
 	refreshRepo := repository.NewRefreshTokenRepository(database)
@@ -69,7 +102,7 @@ func main() {
 	// Initialize services
 	userService := service.NewUserService(userRepo, refreshRepo)
 	bugsbySyncService := service.NewBugsbySyncService(bugsbyClient, bugRepo, userRepo)
-	releaseNoteService := service.NewReleaseNoteService(releaseNoteRepo, bugRepo, bugsbyClient, database)
+	releaseNoteService := service.NewReleaseNoteService(releaseNoteRepo, bugRepo, bugsbyClient, aiService, database)
 
 	// Initialize handlers (pass config for JWT)
 	userHandler := handlers.NewUserHandler(userService, cfg)

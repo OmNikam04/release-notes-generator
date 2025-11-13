@@ -103,6 +103,7 @@ type releaseNoteService struct {
 	releaseNoteRepo repository.ReleaseNoteRepository
 	bugRepo         repository.BugRepository
 	bugsbyClient    bugsby.Client
+	aiService       AIService
 	db              *gorm.DB
 }
 
@@ -111,12 +112,14 @@ func NewReleaseNoteService(
 	releaseNoteRepo repository.ReleaseNoteRepository,
 	bugRepo repository.BugRepository,
 	bugsbyClient bugsby.Client,
+	aiService AIService,
 	db *gorm.DB,
 ) ReleaseNoteService {
 	return &releaseNoteService{
 		releaseNoteRepo: releaseNoteRepo,
 		bugRepo:         bugRepo,
 		bugsbyClient:    bugsbyClient,
+		aiService:       aiService,
 		db:              db,
 	}
 }
@@ -267,28 +270,70 @@ func (s *releaseNoteService) GenerateReleaseNote(
 	}
 
 	var content string
-	generatedBy := "manual"
+	var generatedBy string
+	var aiModel *string
+	var aiConfidence *float64
+	var status string
 
 	if manualContent != nil && *manualContent != "" {
 		// Use manual content
 		content = *manualContent
 		generatedBy = "manual"
+		status = "draft"
 	} else {
-		// Generate placeholder content
-		// TODO: Phase 2 - Integrate with AI service
-		content = s.generatePlaceholderContent(bug)
-		generatedBy = "placeholder"
+		// Try AI generation first
+		if s.aiService != nil {
+			// Get bug context (commits)
+			bugContext, err := s.GetBugContext(ctx, bugID)
+			if err != nil {
+				logger.Warn().Err(err).Str("bug_id", bugID.String()).Msg("Failed to get bug context, will try AI without commits")
+			}
+
+			// Generate with AI
+			aiContent, confidence, aiErr := s.aiService.GenerateReleaseNote(ctx, bug, bugContext.Comments)
+			if aiErr == nil && aiContent != "" {
+				// AI generation successful
+				content = aiContent
+				generatedBy = "ai"
+				status = "ai_generated"
+				modelName := "gemini-2.5-pro" // Get from config
+				aiModel = &modelName
+				aiConfidence = &confidence
+
+				logger.Info().
+					Str("bug_id", bugID.String()).
+					Float64("confidence", confidence).
+					Msg("Successfully generated release note with AI")
+			} else {
+				// AI generation failed, fallback to placeholder
+				logger.Warn().
+					Err(aiErr).
+					Str("bug_id", bugID.String()).
+					Msg("AI generation failed, falling back to placeholder")
+				content = s.generatePlaceholderContent(bug)
+				generatedBy = "placeholder"
+				status = "draft"
+			}
+		} else {
+			// No AI service available, use placeholder
+			logger.Warn().Str("bug_id", bugID.String()).Msg("AI service not available, using placeholder")
+			content = s.generatePlaceholderContent(bug)
+			generatedBy = "placeholder"
+			status = "draft"
+		}
 	}
 
 	// Create release note
 	note := &models.ReleaseNote{
-		ID:          uuid.New(),
-		BugID:       bugID,
-		Content:     content,
-		Version:     1,
-		GeneratedBy: generatedBy,
-		Status:      "draft",
-		CreatedByID: &userID,
+		ID:           uuid.New(),
+		BugID:        bugID,
+		Content:      content,
+		Version:      1,
+		GeneratedBy:  generatedBy,
+		AIModel:      aiModel,
+		AIConfidence: aiConfidence,
+		Status:       status,
+		CreatedByID:  &userID,
 	}
 
 	// Save to database

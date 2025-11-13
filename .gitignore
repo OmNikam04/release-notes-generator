@@ -30,6 +30,18 @@ backend/main
 *.env
 
 # ============================================
+# GCP Credentials
+# ============================================
+# Service account key files
+gcp-key.json
+**/gcp-key.json
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+!jsconfig.json
+
+# ============================================
 # AI-Generated Documentation
 # ============================================
 # Exclude AI-generated explanation files

@@ -34,4 +34,8 @@ test:
 
 # Access API container shell
 shell:
-	docker exec -it bike_tracker_api sh
+	docker exec -it release-notest-generator-api sh
+
+# Run with migrations enabled
+run-migrate:
+	RUN_MIGRATIONS=true docker-compose up

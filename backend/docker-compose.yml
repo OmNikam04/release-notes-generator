@@ -8,7 +8,10 @@ services:
       - "0.0.0.0:8080:8080"
     env_file:
       - .env
+    environment:
+      - RUN_MIGRATIONS=${RUN_MIGRATIONS:-false}
     volumes:
       - .:/app                    # Mount source code for live reload
       - /app/tmp                  # Exclude tmp directory (Air's build artifacts)
+      - ~/.config/gcloud:/root/.config/gcloud:ro  # Mount gcloud ADC credentials
     command: ["air", "-c", ".air.toml"]
