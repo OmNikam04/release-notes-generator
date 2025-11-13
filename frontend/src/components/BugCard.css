@@ -7,12 +7,24 @@
   border: 1px solid #2a2a2a;
   display: flex;
   flex-direction: column;
-  height: 100%;
   width: 100%;
   position: relative;
   overflow: hidden;
-  min-height: 280px;
   cursor: pointer;
+}
+
+/* Cards in regular grid view */
+.bugs-grid .bug-card {
+  height: 100%;
+  min-height: 280px;
+}
+
+/* Cards in Kanban columns - independent height */
+.kanban-column .bug-card {
+  background: #242424;
+  height: auto;
+  min-height: auto;
+  border: 1px solid #3a3a3a;
 }
 
 .bug-card::before {
@@ -128,6 +140,14 @@
   font-size: 0.9rem;
   color: #e5e5e5;
   font-weight: 500;
+}
+
+.field-value.note-preview {
+  font-size: 0.85rem;
+  color: #a3a3a3;
+  font-style: italic;
+  line-height: 1.4;
+  word-break: break-word;
 }
 
 .bug-card-footer {

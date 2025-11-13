@@ -16,7 +16,8 @@ export const dummyBugs = [
     assigned_to: "John Doe",
     manager_id: "Sarah Wilson",
     created_at: "2024-11-10T10:30:00Z",
-    last_synced_at: "2024-11-13T08:00:00Z"
+    last_synced_at: "2024-11-13T08:00:00Z",
+    generated_note: "Fixed critical authentication token validation bug that prevented users from logging in with valid credentials. Updated token validation logic to properly handle JWT expiration and refresh mechanisms."
   },
   {
     id: "550e8400-e29b-41d4-a716-446655440002",
@@ -34,7 +35,8 @@ export const dummyBugs = [
     assigned_to: "Jane Smith",
     manager_id: "Sarah Wilson",
     created_at: "2024-11-09T14:20:00Z",
-    last_synced_at: "2024-11-13T08:00:00Z"
+    last_synced_at: "2024-11-13T08:00:00Z",
+    generated_note: "Improved dashboard loading performance by optimizing database queries and implementing Redis caching layer. Dashboard now loads in under 2 seconds for large datasets."
   },
   {
     id: "550e8400-e29b-41d4-a716-446655440003",
@@ -52,7 +54,8 @@ export const dummyBugs = [
     assigned_to: "Mike Johnson",
     manager_id: "Sarah Wilson",
     created_at: "2024-11-08T09:15:00Z",
-    last_synced_at: "2024-11-13T08:00:00Z"
+    last_synced_at: "2024-11-13T08:00:00Z",
+    generated_note: "Resolved API Gateway timeout issues by implementing chunked transfer encoding and increasing payload size limits to 50MB. Added request timeout configuration for better handling of large payloads."
   },
   {
     id: "550e8400-e29b-41d4-a716-446655440004",
@@ -70,7 +73,8 @@ export const dummyBugs = [
     assigned_to: "Sarah Wilson",
     manager_id: "Sarah Wilson",
     created_at: "2024-11-07T16:45:00Z",
-    last_synced_at: "2024-11-13T08:00:00Z"
+    last_synced_at: "2024-11-13T08:00:00Z",
+    generated_note: "Fixed mobile UI responsiveness issues by implementing mobile-first CSS design patterns and updating media queries for screens below 375px width."
   },
   {
     id: "550e8400-e29b-41d4-a716-446655440005",
@@ -88,7 +92,8 @@ export const dummyBugs = [
     assigned_to: "Tom Brown",
     manager_id: "Sarah Wilson",
     created_at: "2024-11-06T11:30:00Z",
-    last_synced_at: "2024-11-13T08:00:00Z"
+    last_synced_at: "2024-11-13T08:00:00Z",
+    generated_note: "Resolved database connection pool exhaustion by implementing connection timeout policies and increasing pool size from 20 to 100 connections. Added monitoring for long-running queries."
   },
   {
     id: "550e8400-e29b-41d4-a716-446655440006",
@@ -106,6 +111,7 @@ export const dummyBugs = [
     assigned_to: "Lisa Davis",
     manager_id: "Sarah Wilson",
     created_at: "2024-11-05T13:00:00Z",
-    last_synced_at: "2024-11-13T08:00:00Z"
+    last_synced_at: "2024-11-13T08:00:00Z",
+    generated_note: "Fixed email notification service by updating SMTP credentials and firewall rules. Email alerts now send successfully with 99.9% delivery rate."
   }
 ];

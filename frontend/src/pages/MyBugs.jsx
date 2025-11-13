@@ -58,6 +58,29 @@ const MyBugs = () => {
     return [...new Set(bugs.map(bug => bug.release).filter(Boolean))];
   };
 
+  // Group bugs by Kanban columns
+  const getBugsByColumn = () => {
+    const columns = {
+      pending: [],
+      dev_approved: [],
+      approved: []
+    };
+
+    filteredBugs.forEach(bug => {
+      if (bug.status === 'pending') {
+        columns.pending.push(bug);
+      } else if (bug.status === 'dev_approved') {
+        columns.dev_approved.push(bug);
+      } else if (bug.status === 'mgr_approved' || bug.status === 'approved') {
+        columns.approved.push(bug);
+      }
+    });
+
+    return columns;
+  };
+
+  const kanbanColumns = getBugsByColumn();
+
   return (
     <div className="my-bugs-page">
       <div className="page-header">
@@ -85,7 +108,7 @@ const MyBugs = () => {
               <div className="search-bar">
                 <input
                   type="text"
-                  placeholder="Search bugs by title, description, or component..."
+                  placeholder="Search bugs by title, description, or package..."
                   value={filters.search}
                   onChange={(e) => handleSearchChange(e.target.value)}
                   className="search-input"
@@ -93,17 +116,6 @@ const MyBugs = () => {
               </div>
 
               <div className="filter-controls">
-                <select
-                  value={filters.status}
-                  onChange={(e) => handleStatusFilterChange(e.target.value)}
-                  className="filter-select"
-                >
-                  <option value="all">All Statuses</option>
-                  {getUniqueStatuses().map(status => (
-                    <option key={status} value={status}>{status}</option>
-                  ))}
-                </select>
-
                 <select
                   value={filters.release}
                   onChange={(e) => handleReleaseFilterChange(e.target.value)}
@@ -116,50 +128,87 @@ const MyBugs = () => {
                 </select>
               </div>
             </div>
-
-            <div className="bugs-stats">
-              <div className="stat-card">
-                <span className="stat-number">{filteredBugs.length}</span>
-                <span className="stat-label">Total</span>
-              </div>
-              <div className="stat-card">
-                <span className="stat-number">
-                  {filteredBugs.filter(bug => bug.status === 'Open').length}
-                </span>
-                <span className="stat-label">Open</span>
-              </div>
-              <div className="stat-card">
-                <span className="stat-number">
-                  {filteredBugs.filter(bug => bug.status === 'In Progress').length}
-                </span>
-                <span className="stat-label">Progress</span>
-              </div>
-              <div className="stat-card">
-                <span className="stat-number">
-                  {filteredBugs.filter(bug => bug.status === 'Resolved').length}
-                </span>
-                <span className="stat-label">Resolved</span>
-              </div>
-            </div>
           </div>
         </div>
 
-        <div className="bugs-container">
-          <div className="bugs-grid">
-            {filteredBugs.length > 0 ? (
-              filteredBugs.map(bug => (
-                <BugCard
-                  key={bug.id}
-                  bug={bug}
-                  onClick={() => handleBugClick(bug)}
-                />
-              ))
-            ) : (
-              <div className="no-bugs-message">
-                <h3>No bugs found</h3>
-                <p>Try adjusting your search or filter criteria.</p>
-              </div>
-            )}
+        {/* Kanban Board */}
+        <div className="kanban-board">
+          {/* Column 1: Raw AI Generated / Pending */}
+          <div className="kanban-column">
+            <div className="column-header">
+              <h3 className="column-title">
+                <span className="column-icon">🤖</span>
+                Raw AI Generated
+              </h3>
+              <span className="column-count">{kanbanColumns.pending.length}</span>
+            </div>
+            <div className="column-content">
+              {kanbanColumns.pending.length > 0 ? (
+                kanbanColumns.pending.map(bug => (
+                  <BugCard
+                    key={bug.id}
+                    bug={bug}
+                    onClick={() => handleBugClick(bug)}
+                  />
+                ))
+              ) : (
+                <div className="empty-column-message">
+                  <p>No pending bugs</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Column 2: Developer Approved */}
+          <div className="kanban-column">
+            <div className="column-header">
+              <h3 className="column-title">
+                <span className="column-icon">👨‍💻</span>
+                Developer Approved
+              </h3>
+              <span className="column-count">{kanbanColumns.dev_approved.length}</span>
+            </div>
+            <div className="column-content">
+              {kanbanColumns.dev_approved.length > 0 ? (
+                kanbanColumns.dev_approved.map(bug => (
+                  <BugCard
+                    key={bug.id}
+                    bug={bug}
+                    onClick={() => handleBugClick(bug)}
+                  />
+                ))
+              ) : (
+                <div className="empty-column-message">
+                  <p>No developer approved bugs</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Column 3: Manager Approved / Release Note Approved */}
+          <div className="kanban-column">
+            <div className="column-header">
+              <h3 className="column-title">
+                <span className="column-icon">✅</span>
+                Release Note Approved
+              </h3>
+              <span className="column-count">{kanbanColumns.approved.length}</span>
+            </div>
+            <div className="column-content">
+              {kanbanColumns.approved.length > 0 ? (
+                kanbanColumns.approved.map(bug => (
+                  <BugCard
+                    key={bug.id}
+                    bug={bug}
+                    onClick={() => handleBugClick(bug)}
+                  />
+                ))
+              ) : (
+                <div className="empty-column-message">
+                  <p>No approved bugs</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

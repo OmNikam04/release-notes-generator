@@ -92,7 +92,7 @@ const BugDetailModal = ({ bug, onClose }) => {
                   <span className="detail-value">{bug.priority}</span>
                 </div>
                 <div className="detail-item">
-                  <span className="detail-label">Component</span>
+                  <span className="detail-label">Package</span>
                   <span className="detail-value">{bug.component}</span>
                 </div>
                 <div className="detail-item">

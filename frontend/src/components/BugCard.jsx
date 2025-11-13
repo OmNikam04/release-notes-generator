@@ -23,6 +23,12 @@ const BugCard = ({ bug, onClick }) => {
     return labels[status] || status;
   };
 
+  const getFirstLineOfNote = (note) => {
+    if (!note) return 'No release note generated yet';
+    const firstLine = note.split('\n')[0];
+    return firstLine.length > 80 ? firstLine.substring(0, 80) + '...' : firstLine;
+  };
+
   return (
     <div className="bug-card" onClick={onClick}>
       <div className="bug-card-header">
@@ -41,8 +47,8 @@ const BugCard = ({ bug, onClick }) => {
       <div className="bug-card-body">
         <div className="bug-meta">
           <div className="bug-field">
-            <span className="field-label">📦 Component:</span>
-            <span className="field-value">{bug.component}</span>
+            <span className="field-label">📝 Release Note:</span>
+            <span className="field-value note-preview">{getFirstLineOfNote(bug.generated_note)}</span>
           </div>
         </div>
       </div>
