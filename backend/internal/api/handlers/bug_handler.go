@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -15,16 +16,23 @@ import (
 )
 
 type BugHandler struct {
-	bugsbySyncService service.BugsbySyncService
-	bugRepository     repository.BugRepository
-	bugsbyClient      bugsby.Client
+	bugsbySyncService  service.BugsbySyncService
+	bugRepository      repository.BugRepository
+	bugsbyClient       bugsby.Client
+	releaseNoteService service.ReleaseNoteService
 }
 
-func NewBugHandler(bugsbySyncService service.BugsbySyncService, bugRepository repository.BugRepository, bugsbyClient bugsby.Client) *BugHandler {
+func NewBugHandler(
+	bugsbySyncService service.BugsbySyncService,
+	bugRepository repository.BugRepository,
+	bugsbyClient bugsby.Client,
+	releaseNoteService service.ReleaseNoteService,
+) *BugHandler {
 	return &BugHandler{
-		bugsbySyncService: bugsbySyncService,
-		bugRepository:     bugRepository,
-		bugsbyClient:      bugsbyClient,
+		bugsbySyncService:  bugsbySyncService,
+		bugRepository:      bugRepository,
+		bugsbyClient:       bugsbyClient,
+		releaseNoteService: releaseNoteService,
 	}
 }
 
@@ -64,6 +72,11 @@ func (h *BugHandler) SyncRelease(c *fiber.Ctx) error {
 		})
 	}
 
+	// Auto-generate AI release notes in background (async)
+	if len(result.SyncedBugIDs) > 0 {
+		go h.autoGenerateReleaseNotes(result.SyncedBugIDs, "SyncRelease")
+	}
+
 	// Convert to response DTO
 	response := &dto.SyncResultResponse{
 		TotalFetched: result.TotalFetched,
@@ -79,11 +92,12 @@ func (h *BugHandler) SyncRelease(c *fiber.Ctx) error {
 		Int("total", result.TotalFetched).
 		Int("new", result.NewBugs).
 		Int("updated", result.UpdatedBugs).
-		Msg("Release sync completed")
+		Int("ai_generation_queued", len(result.SyncedBugIDs)).
+		Msg("Release sync completed, AI generation started in background")
 
 	return c.Status(fiber.StatusOK).JSON(dto.SuccessResponse{
 		Success: true,
-		Message: "Release synced successfully",
+		Message: "Release synced successfully, AI release notes generation in progress",
 		Data:    response,
 	})
 }
@@ -110,11 +124,14 @@ func (h *BugHandler) SyncBugByID(c *fiber.Ctx) error {
 		})
 	}
 
-	logger.Info().Int("bugsby_id", bugsbyID).Msg("Bug synced successfully")
+	// Auto-generate AI release note in background (async)
+	go h.autoGenerateReleaseNotes([]uuid.UUID{bug.ID}, "SyncBugByID")
+
+	logger.Info().Int("bugsby_id", bugsbyID).Msg("Bug synced successfully, AI generation started")
 
 	return c.Status(fiber.StatusOK).JSON(dto.SuccessResponse{
 		Success: true,
-		Message: "Bug synced successfully",
+		Message: "Bug synced successfully, AI release note generation in progress",
 		Data:    dto.ToBugResponse(bug),
 	})
 }
@@ -140,7 +157,7 @@ func (h *BugHandler) SyncByQuery(c *fiber.Ctx) error {
 	// Set default limit if not provided
 	limit := req.Limit
 	if limit <= 0 {
-		limit = 100
+		limit = 25 // Changed from 100 to 25 for demo purposes
 	}
 
 	// Perform sync
@@ -153,13 +170,19 @@ func (h *BugHandler) SyncByQuery(c *fiber.Ctx) error {
 		})
 	}
 
+	// Auto-generate AI release notes in background (async)
+	if len(result.SyncedBugIDs) > 0 {
+		go h.autoGenerateReleaseNotes(result.SyncedBugIDs, "SyncByQuery")
+	}
+
 	logger.Info().
 		Str("query", req.Query).
 		Int("total", result.TotalFetched).
 		Int("new", result.NewBugs).
 		Int("updated", result.UpdatedBugs).
 		Int("failed", result.FailedBugs).
-		Msg("Bugs synced successfully by query")
+		Int("ai_generation_queued", len(result.SyncedBugIDs)).
+		Msg("Bugs synced successfully by query, AI generation started in background")
 
 	response := &dto.SyncResultResponse{
 		TotalFetched: result.TotalFetched,
@@ -172,7 +195,7 @@ func (h *BugHandler) SyncByQuery(c *fiber.Ctx) error {
 
 	return c.Status(fiber.StatusOK).JSON(dto.SuccessResponse{
 		Success: true,
-		Message: "Bugs synced successfully",
+		Message: "Bugs synced successfully, AI release notes generation in progress",
 		Data:    response,
 	})
 }
@@ -595,4 +618,57 @@ func (h *BugHandler) GetBugsByCustomQuery(c *fiber.Ctx) error {
 			"query":     req.Query,
 		},
 	})
+}
+
+// autoGenerateReleaseNotes generates AI release notes for synced bugs in background
+// This runs asynchronously and doesn't block the sync response
+func (h *BugHandler) autoGenerateReleaseNotes(bugIDs []uuid.UUID, source string) {
+	ctx := context.Background()
+
+	logger.Info().
+		Int("bug_count", len(bugIDs)).
+		Str("source", source).
+		Msg("🤖 Starting background AI release note generation")
+
+	successCount := 0
+	skipCount := 0
+	failCount := 0
+
+	for _, bugID := range bugIDs {
+		// Check if release note already exists
+		existingNote, err := h.releaseNoteService.GetReleaseNoteByBugID(ctx, bugID)
+		if err == nil && existingNote != nil {
+			logger.Debug().
+				Str("bug_id", bugID.String()).
+				Msg("⏭️  Skipping AI generation - release note already exists")
+			skipCount++
+			continue
+		}
+
+		// Generate AI release note (userID is nil for AI-generated notes)
+		_, err = h.releaseNoteService.GenerateReleaseNote(ctx, bugID, uuid.Nil, nil)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Str("bug_id", bugID.String()).
+				Str("source", source).
+				Msg("❌ Failed to auto-generate AI release note")
+			failCount++
+			continue
+		}
+
+		logger.Info().
+			Str("bug_id", bugID.String()).
+			Str("source", source).
+			Msg("✅ Successfully auto-generated AI release note")
+		successCount++
+	}
+
+	logger.Info().
+		Int("total", len(bugIDs)).
+		Int("success", successCount).
+		Int("skipped", skipCount).
+		Int("failed", failCount).
+		Str("source", source).
+		Msg("🎉 Background AI release note generation completed")
 }

@@ -23,12 +23,13 @@ type BugsbySyncService interface {
 
 // SyncResult represents the result of a sync operation
 type SyncResult struct {
-	TotalFetched int       `json:"total_fetched"`
-	NewBugs      int       `json:"new_bugs"`
-	UpdatedBugs  int       `json:"updated_bugs"`
-	FailedBugs   int       `json:"failed_bugs"`
-	SyncedAt     time.Time `json:"synced_at"`
-	Errors       []string  `json:"errors,omitempty"`
+	TotalFetched int         `json:"total_fetched"`
+	NewBugs      int         `json:"new_bugs"`
+	UpdatedBugs  int         `json:"updated_bugs"`
+	FailedBugs   int         `json:"failed_bugs"`
+	SyncedAt     time.Time   `json:"synced_at"`
+	Errors       []string    `json:"errors,omitempty"`
+	SyncedBugIDs []uuid.UUID `json:"synced_bug_ids,omitempty"` // UUIDs of successfully synced bugs
 }
 
 // SyncStatus represents the sync status for a release
@@ -65,8 +66,9 @@ func (s *bugsbySyncService) SyncRelease(ctx context.Context, release string, fil
 	logger.Info().Str("release", release).Msg("Starting Bugsby sync for release")
 
 	result := &SyncResult{
-		SyncedAt: time.Now(),
-		Errors:   []string{},
+		SyncedAt:     time.Now(),
+		Errors:       []string{},
+		SyncedBugIDs: []uuid.UUID{},
 	}
 
 	// Fetch bugs from Bugsby
@@ -95,6 +97,7 @@ func (s *bugsbySyncService) SyncRelease(ctx context.Context, release string, fil
 	// Process each bug
 	for i := range bugsbyResp.Bugs {
 		bugsbyBug := &bugsbyResp.Bugs[i]
+		bugsbyIDStr := fmt.Sprintf("%d", bugsbyBug.ID)
 
 		if err := s.syncSingleBug(bugsbyBug, userEmailToIDMap); err != nil {
 			result.FailedBugs++
@@ -106,8 +109,18 @@ func (s *bugsbySyncService) SyncRelease(ctx context.Context, release string, fil
 			continue
 		}
 
+		// Get the synced bug to retrieve its UUID
+		syncedBug, err := s.bugRepository.FindByBugsbyID(bugsbyIDStr)
+		if err != nil {
+			logger.Error().Err(err).Str("bugsby_id", bugsbyIDStr).Msg("Failed to retrieve synced bug UUID")
+			continue
+		}
+
+		// Track the bug UUID for AI generation
+		result.SyncedBugIDs = append(result.SyncedBugIDs, syncedBug.ID)
+
 		// Check if it was a new bug or update
-		exists, _ := s.bugRepository.BugsbyIDExists(fmt.Sprintf("%d", bugsbyBug.ID))
+		exists, _ := s.bugRepository.BugsbyIDExists(bugsbyIDStr)
 		if exists {
 			result.UpdatedBugs++
 		} else {
@@ -166,13 +179,14 @@ func (s *bugsbySyncService) SyncByQuery(ctx context.Context, query string, limit
 	logger.Info().Str("query", query).Int("limit", limit).Msg("Starting Bugsby sync by custom query")
 
 	result := &SyncResult{
-		SyncedAt: time.Now(),
-		Errors:   []string{},
+		SyncedAt:     time.Now(),
+		Errors:       []string{},
+		SyncedBugIDs: []uuid.UUID{},
 	}
 
 	// Set default limit if not provided
 	if limit <= 0 {
-		limit = 100
+		limit = 25 // Changed from 100 to 25 for demo purposes
 	}
 
 	// Fetch bugs from Bugsby using custom query
@@ -201,6 +215,8 @@ func (s *bugsbySyncService) SyncByQuery(ctx context.Context, query string, limit
 	// Sync each bug
 	for i := range bugsbyResp.Bugs {
 		bugsbyBug := &bugsbyResp.Bugs[i]
+		bugsbyIDStr := fmt.Sprintf("%d", bugsbyBug.ID)
+
 		if err := s.syncSingleBug(bugsbyBug, userEmailToIDMap); err != nil {
 			logger.Error().
 				Err(err).
@@ -210,6 +226,16 @@ func (s *bugsbySyncService) SyncByQuery(ctx context.Context, query string, limit
 			result.Errors = append(result.Errors, fmt.Sprintf("Bug %d: %v", bugsbyBug.ID, err))
 			continue
 		}
+
+		// Get the synced bug to retrieve its UUID
+		syncedBug, err := s.bugRepository.FindByBugsbyID(bugsbyIDStr)
+		if err != nil {
+			logger.Error().Err(err).Str("bugsby_id", bugsbyIDStr).Msg("Failed to retrieve synced bug UUID")
+			continue
+		}
+
+		// Track the bug UUID for AI generation
+		result.SyncedBugIDs = append(result.SyncedBugIDs, syncedBug.ID)
 
 		// Check if it was a new bug or update
 		// This is a simple heuristic - could be improved
