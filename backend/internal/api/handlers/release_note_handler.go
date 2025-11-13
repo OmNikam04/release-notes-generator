@@ -81,8 +81,14 @@ func (h *ReleaseNoteHandler) GetPendingBugs(c *fiber.Ctx) error {
 	}
 
 	// Convert to response
-	totalPages := int(result.Total) / req.Limit
-	if int(result.Total)%req.Limit != 0 {
+	// Ensure limit is at least 1 to avoid division by zero
+	limit := req.Limit
+	if limit < 1 {
+		limit = 20 // Default limit
+	}
+
+	totalPages := int(result.Total) / limit
+	if int(result.Total)%limit != 0 {
 		totalPages++
 	}
 
@@ -90,7 +96,7 @@ func (h *ReleaseNoteHandler) GetPendingBugs(c *fiber.Ctx) error {
 		Bugs:       make([]dto.BugResponse, 0, len(result.Bugs)),
 		Total:      result.Total,
 		Page:       req.Page,
-		Limit:      req.Limit,
+		Limit:      limit,
 		TotalPages: totalPages,
 	}
 

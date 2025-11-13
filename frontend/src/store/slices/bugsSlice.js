@@ -1,17 +1,19 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { dummyBugs } from '../../data/dummyBugs';
 
-// Async thunk for fetching bugs (will be replaced with API call)
+// Async thunk for fetching bugs
 export const fetchBugs = createAsyncThunk(
   'bugs/fetchBugs',
-  async (_, { rejectWithValue }) => {
+  async (bugsData = null, { rejectWithValue }) => {
     try {
-      // TODO: Replace with actual API call
-      // const response = await fetch('/api/bugs');
-      // const data = await response.json();
-      // return data;
-      
-      // For now, return dummy data
+      // If bugsData is provided (from API), use it
+      if (bugsData) {
+        console.log('[Redux] Setting bugs from API data:', bugsData);
+        return bugsData;
+      }
+
+      // Otherwise, use dummy data (fallback)
+      console.log('[Redux] Using dummy data as fallback');
       return dummyBugs;
     } catch (error) {
       return rejectWithValue(error.message);

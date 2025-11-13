@@ -31,26 +31,43 @@ const BugCard = ({ bug, onClick }) => {
 
   return (
     <div className="bug-card" onClick={onClick}>
-      <div className="bug-card-header">
-        <div className="bug-header-top">
-          <span className="bug-id">{bug.bugsby_id}</span>
+      {/* Desktop View - Full Details */}
+      <div className="bug-card-desktop">
+        <div className="bug-card-header">
+          <div className="bug-header-top">
+            <span className="bug-id">{bug.bugsby_id}</span>
+            <span
+              className="status-badge"
+              style={{ backgroundColor: getStatusColor(bug.status) }}
+            >
+              {getStatusLabel(bug.status)}
+            </span>
+          </div>
+          <h3 className="bug-title">{bug.title}</h3>
+        </div>
+
+        <div className="bug-card-body">
+          <div className="bug-meta">
+            <div className="bug-field">
+              <span className="field-label">📝 Release Note:</span>
+              <span className="field-value note-preview">{getFirstLineOfNote(bug.generated_note)}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile View - Compact */}
+      <div className="bug-card-mobile">
+        <div className="mobile-header">
+          <span className="bug-id-mobile">{bug.bugsby_id}</span>
           <span
-            className="status-badge"
+            className="status-badge-mobile"
             style={{ backgroundColor: getStatusColor(bug.status) }}
           >
             {getStatusLabel(bug.status)}
           </span>
         </div>
-        <h3 className="bug-title">{bug.title}</h3>
-      </div>
-
-      <div className="bug-card-body">
-        <div className="bug-meta">
-          <div className="bug-field">
-            <span className="field-label">📝 Release Note:</span>
-            <span className="field-value note-preview">{getFirstLineOfNote(bug.generated_note)}</span>
-          </div>
-        </div>
+        <h3 className="bug-title-mobile">{bug.title}</h3>
       </div>
     </div>
   );

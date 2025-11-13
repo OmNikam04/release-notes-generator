@@ -167,6 +167,11 @@ func ToBugListResponse(bugs []*models.Bug, total int64, page, limit int) *BugLis
 		}
 	}
 
+	// Ensure limit is at least 1 to avoid division by zero
+	if limit < 1 {
+		limit = 20 // Default limit
+	}
+
 	totalPages := int(total) / limit
 	if int(total)%limit != 0 {
 		totalPages++

@@ -106,14 +106,29 @@ export const authAPI = {
 
 // Bugs API calls
 export const bugsAPI = {
-  // Get all bugs
-  getBugs: async () => {
-    console.log('[API] Fetching bugs from backend');
-    
+  // Get all bugs with optional filters
+  getBugs: async (filters = {}) => {
+    console.log('[API] Fetching bugs from backend with filters:', filters);
+
     try {
-      const response = await apiCall('/bugs/', 'GET');
-      
+      // Build query string from filters
+      const queryParams = new URLSearchParams();
+      if (filters.release) queryParams.append('release', filters.release);
+      if (filters.status) queryParams.append('status', filters.status);
+      if (filters.severity) queryParams.append('severity', filters.severity);
+      if (filters.bug_type) queryParams.append('bug_type', filters.bug_type);
+      if (filters.assigned_to) queryParams.append('assigned_to', filters.assigned_to);
+      if (filters.manager_id) queryParams.append('manager_id', filters.manager_id);
+      if (filters.page) queryParams.append('page', filters.page);
+      if (filters.limit) queryParams.append('limit', filters.limit);
+
+      const queryString = queryParams.toString();
+      const endpoint = queryString ? `/bugs?${queryString}` : '/bugs';
+
+      const response = await apiCall(endpoint, 'GET');
+
       console.log('[API] Bugs data from DB:', response.data);
+      console.log('[API] Total bugs:', response.data.pagination?.total || response.data.bugs?.length);
       return response.data;
     } catch (error) {
       console.error('[API] Failed to fetch bugs:', error.message);
@@ -121,17 +136,62 @@ export const bugsAPI = {
     }
   },
 
-  // Get single bug
+  // Get single bug by UUID
   getBug: async (bugId) => {
-    console.log('[API] Fetching bug:', bugId);
-    
+    console.log('[API] Fetching bug by ID:', bugId);
+
     try {
       const response = await apiCall(`/bugs/${bugId}`, 'GET');
-      
+
       console.log('[API] Bug data from DB:', response.data);
       return response.data;
     } catch (error) {
       console.error('[API] Failed to fetch bug:', error.message);
+      throw error;
+    }
+  },
+
+  // Get bug by Bugsby ID
+  getBugByBugsbyId: async (bugsbyId) => {
+    console.log('[API] Fetching bug by Bugsby ID:', bugsbyId);
+
+    try {
+      const response = await apiCall(`/bugs/bugsby/${bugsbyId}`, 'GET');
+
+      console.log('[API] Bug data from DB:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('[API] Failed to fetch bug by Bugsby ID:', error.message);
+      throw error;
+    }
+  },
+
+  // Update bug
+  updateBug: async (bugId, updates) => {
+    console.log('[API] Updating bug:', bugId, 'with data:', updates);
+
+    try {
+      const response = await apiCall(`/bugs/${bugId}`, 'PUT', updates);
+
+      console.log('[API] Bug updated successfully:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('[API] Failed to update bug:', error.message);
+      throw error;
+    }
+  },
+
+  // Delete bug
+  deleteBug: async (bugId) => {
+    console.log('[API] Deleting bug:', bugId);
+
+    try {
+      const response = await apiCall(`/bugs/${bugId}`, 'DELETE');
+
+      console.log('[API] Bug deleted successfully');
+      return response;
+    } catch (error) {
+      console.error('[API] Failed to delete bug:', error.message);
       throw error;
     }
   },

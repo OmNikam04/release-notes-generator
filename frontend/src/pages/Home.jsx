@@ -15,7 +15,7 @@ const Home = () => {
             <p className="quote-author">— Aristotle</p>
           </div>
 
-          <h1 className="hero-title">Release Notes Generator</h1>
+          <h1 className="hero-title">🔥 NoteForge</h1>
           <p className="hero-subtitle">
             Transform your bug fixes into professional release notes with AI-powered automation
           </p>

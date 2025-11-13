@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import BugCard from '../components/BugCard';
 import BugDetailModal from '../components/BugDetailModal';
 import {
@@ -11,17 +12,63 @@ import {
   setReleaseFilter,
   applyFilters,
 } from '../store/slices/bugsSlice';
+import { logout } from '../store/slices/authSlice';
+import { bugsAPI, authAPI } from '../services/api';
 import './MyBugs.css';
 
 const MyBugs = () => {
   const dispatch = useDispatch();
-  const { filteredBugs, selectedBug, loading, filters } = useSelector((state) => state.bugs);
+  const navigate = useNavigate();
+  const { filteredBugs, selectedBug, filters } = useSelector((state) => state.bugs);
   const { user } = useSelector((state) => state.auth);
+  const [apiLoading, setApiLoading] = useState(false);
+  const [apiError, setApiError] = useState('');
+  const [logoutLoading, setLogoutLoading] = useState(false);
+  const [showError, setShowError] = useState(false);
 
   useEffect(() => {
-    // Fetch bugs on component mount
-    dispatch(fetchBugs());
-  }, [dispatch]);
+    // Fetch bugs from backend API on component mount
+    const fetchBugsFromAPI = async () => {
+      setApiLoading(true);
+      setApiError('');
+
+      try {
+        console.log('[MyBugs] Fetching bugs from backend API for user:', user?.email);
+
+        // Fetch bugs from backend
+        const response = await bugsAPI.getBugs();
+
+        console.log('[MyBugs] Bugs fetched from backend:', response.bugs);
+        console.log('[MyBugs] Total bugs:', response.pagination?.total || response.bugs?.length);
+        console.log('[MyBugs] Pagination info:', response.pagination);
+
+        // Transform backend data to match frontend format
+        // Backend returns bugs with generated_note as null initially
+        const transformedBugs = response.bugs.map(bug => ({
+          ...bug,
+          generated_note: bug.generated_note || null, // Explicitly set to null if not present
+        }));
+
+        console.log('[MyBugs] Transformed bugs:', transformedBugs);
+
+        // Dispatch to Redux store
+        dispatch(fetchBugs(transformedBugs));
+      } catch (error) {
+        console.error('[MyBugs] Failed to fetch bugs from API:', error.message);
+        const errorMsg = error.message || 'Failed to load bugs';
+        setApiError(errorMsg);
+        setShowError(true);
+        // Auto-hide error after 5 seconds
+        setTimeout(() => setShowError(false), 5000);
+        // Fallback to empty bugs list
+        dispatch(fetchBugs([]));
+      } finally {
+        setApiLoading(false);
+      }
+    };
+
+    fetchBugsFromAPI();
+  }, [dispatch, user]);
 
   useEffect(() => {
     // Apply filters whenever filter values change
@@ -46,6 +93,51 @@ const MyBugs = () => {
 
   const handleCloseModal = () => {
     dispatch(clearSelectedBug());
+  };
+
+  const handleLogout = async () => {
+    try {
+      setLogoutLoading(true);
+      console.log('[MyBugs] Starting logout process');
+
+      // Get refresh token from localStorage
+      const refreshToken = localStorage.getItem('refreshToken');
+
+      // Call logout API
+      if (refreshToken) {
+        console.log('[MyBugs] Calling logout API');
+        await authAPI.logout(refreshToken);
+        console.log('[MyBugs] Logout API successful');
+      }
+
+      // Clear localStorage
+      console.log('[MyBugs] Clearing localStorage');
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('userEmail');
+      localStorage.removeItem('userRole');
+      localStorage.removeItem('userId');
+
+      // Dispatch logout action to Redux
+      console.log('[MyBugs] Dispatching logout action to Redux');
+      dispatch(logout());
+
+      // Redirect to login page
+      console.log('[MyBugs] Redirecting to login page');
+      navigate('/');
+    } catch (error) {
+      console.error('[MyBugs] Logout failed:', error.message);
+      // Still clear local state and redirect even if API call fails
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('userEmail');
+      localStorage.removeItem('userRole');
+      localStorage.removeItem('userId');
+      dispatch(logout());
+      navigate('/');
+    } finally {
+      setLogoutLoading(false);
+    }
   };
 
   const bugs = useSelector((state) => state.bugs.bugs);
@@ -85,7 +177,7 @@ const MyBugs = () => {
     <div className="my-bugs-page">
       <div className="page-header">
         <div className="header-left">
-          <h1>My Bugs</h1>
+          <h1>🔥 NoteForge</h1>
           <p className="page-subtitle">
             Manage and track your assigned bugs. Generate release notes with AI assistance.
           </p>
@@ -98,8 +190,40 @@ const MyBugs = () => {
               <span className="user-role">{user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'Developer'}</span>
             </div>
           </div>
+          <button
+            className="logout-button"
+            onClick={handleLogout}
+            disabled={logoutLoading}
+            title="Logout"
+          >
+            {logoutLoading ? '⏳' : '⚡'}
+          </button>
         </div>
       </div>
+
+      {/* Loading State */}
+      {apiLoading && (
+        <div className="loading-message">
+          <p>Loading bugs from backend...</p>
+        </div>
+      )}
+
+      {/* Error Alert - Corner Toast */}
+      {showError && apiError && (
+        <div className="error-toast">
+          <div className="error-toast-content">
+            <span className="error-icon">⚠️</span>
+            <span className="error-text">{apiError}</span>
+          </div>
+          <button
+            className="error-close-btn"
+            onClick={() => setShowError(false)}
+            title="Close"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       <div className="page-content">
         <div className="filters-section">
