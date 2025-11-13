@@ -2,26 +2,66 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { login } from '../store/slices/authSlice';
+import { authAPI } from '../services/api';
 import './Login.css';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('developer');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const navigate = useNavigate();
   const dispatch = useDispatch();
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // TODO: Add actual authentication logic
-    if (email && role) {
-      // Dispatch login action to Redux store
-      dispatch(login({ email, role }));
+    setError('');
+    setLoading(true);
 
-      // Also store in localStorage for persistence
-      localStorage.setItem('userEmail', email);
-      localStorage.setItem('userRole', role);
+    if (!email || !role) {
+      setError('Please fill in all fields');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      console.log('[LOGIN] Starting login process with email:', email, 'role:', role);
+
+      // Call backend API
+      const loginData = await authAPI.login(email, role);
+
+      console.log('[LOGIN] Login successful! User data from DB:', loginData.user);
+      console.log('[LOGIN] User ID:', loginData.user.id);
+      console.log('[LOGIN] User Email:', loginData.user.email);
+      console.log('[LOGIN] User Role:', loginData.user.role);
+      console.log('[LOGIN] Created At:', loginData.user.created_at);
+      console.log('[LOGIN] Updated At:', loginData.user.updated_at);
+
+      // Store tokens
+      localStorage.setItem('authToken', loginData.token);
+      localStorage.setItem('refreshToken', loginData.refresh_token);
+      localStorage.setItem('userEmail', loginData.user.email);
+      localStorage.setItem('userRole', loginData.user.role);
+      localStorage.setItem('userId', loginData.user.id);
+
+      console.log('[LOGIN] Tokens and user data stored in localStorage');
+
+      // Dispatch to Redux
+      dispatch(login({
+        email: loginData.user.email,
+        role: loginData.user.role,
+        id: loginData.user.id,
+      }));
+
+      console.log('[LOGIN] Redux state updated');
+      console.log('[LOGIN] Redirecting to /home');
 
       navigate('/home');
+    } catch (err) {
+      console.error('[LOGIN] Login failed:', err.message);
+      setError(err.message || 'Login failed. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -34,6 +74,8 @@ const Login = () => {
         </div>
 
         <form className="login-form" onSubmit={handleSubmit}>
+          {error && <div className="error-message">{error}</div>}
+
           <div className="form-group">
             <label htmlFor="email" className="form-label">Email</label>
             <input
@@ -43,6 +85,7 @@ const Login = () => {
               placeholder="Enter your email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              disabled={loading}
               required
             />
           </div>
@@ -57,6 +100,7 @@ const Login = () => {
                   value="developer"
                   checked={role === 'developer'}
                   onChange={(e) => setRole(e.target.value)}
+                  disabled={loading}
                 />
                 <span className="role-label">Developer</span>
               </label>
@@ -67,14 +111,15 @@ const Login = () => {
                   value="manager"
                   checked={role === 'manager'}
                   onChange={(e) => setRole(e.target.value)}
+                  disabled={loading}
                 />
                 <span className="role-label">Manager</span>
               </label>
             </div>
           </div>
 
-          <button type="submit" className="login-button">
-            Sign In
+          <button type="submit" className="login-button" disabled={loading}>
+            {loading ? 'Signing In...' : 'Sign In'}
           </button>
         </form>
 

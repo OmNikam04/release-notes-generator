@@ -44,6 +44,17 @@
   gap: 1.5rem;
 }
 
+.error-message {
+  padding: 0.875rem 1rem;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid #ef4444;
+  border-radius: 8px;
+  color: #fca5a5;
+  font-size: 0.9rem;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+
 .form-group {
   display: flex;
   flex-direction: column;
@@ -76,6 +87,13 @@
 
 .form-input::placeholder {
   color: #737373;
+}
+
+.form-input:disabled {
+  background: #0f0f0f;
+  color: #737373;
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .role-options {
@@ -147,6 +165,17 @@
 
 .login-button:active {
   transform: translateY(0);
+}
+
+.login-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  box-shadow: 0 4px 12px rgba(249, 115, 22, 0.2);
+}
+
+.login-button:disabled:hover {
+  transform: none;
+  box-shadow: 0 4px 12px rgba(249, 115, 22, 0.2);
 }
 
 .login-footer {
