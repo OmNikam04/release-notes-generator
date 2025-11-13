@@ -15,14 +15,14 @@ func RunMigrations(db *gorm.DB) error {
 		return fmt.Errorf("failed to enable UUID extensions: %w", err)
 	}
 
+	// Run custom migrations BEFORE auto-migrate to handle schema changes
+	if err := runCustomMigrations(db); err != nil {
+		return fmt.Errorf("failed to run custom migrations: %w", err)
+	}
+
 	// Auto-migrate all models
 	if err := migrateModels(db); err != nil {
 		return fmt.Errorf("failed to migrate models: %w", err)
-	}
-
-	// Run custom migrations
-	if err := runCustomMigrations(db); err != nil {
-		return fmt.Errorf("failed to run custom migrations: %w", err)
 	}
 
 	fmt.Println("✅ Database migrations completed successfully")
@@ -63,21 +63,33 @@ func migrateModels(db *gorm.DB) error {
 }
 
 // runCustomMigrations runs custom SQL migrations that can't be handled by AutoMigrate
+// This handles schema changes like dropping columns, renaming columns, etc.
 func runCustomMigrations(db *gorm.DB) error {
-	// Drop the old unique index if it exists
-	if err := db.Exec("DROP INDEX IF EXISTS idx_bikes_registration_number").Error; err != nil {
-		log.Printf("Warning: Failed to drop old index: %v", err)
+	// Migration 1: Remove 'name' and 'password' columns from users table if they exist
+	if db.Migrator().HasColumn(&models.User{}, "name") {
+		if err := db.Migrator().DropColumn(&models.User{}, "name"); err != nil {
+			log.Printf("Warning: Failed to drop 'name' column from users: %v", err)
+		} else {
+			log.Println("✅ Dropped 'name' column from users table")
+		}
 	}
 
-	// Create a partial unique index on registration_number that excludes soft-deleted records
-	// This allows the same registration number to be reused after a bike is soft-deleted
-	sql := `
-		CREATE UNIQUE INDEX IF NOT EXISTS idx_bikes_registration_number_active
-		ON bikes (registration_number)
-		WHERE deleted_at IS NULL AND registration_number != ''
-	`
-	if err := db.Exec(sql).Error; err != nil {
-		return fmt.Errorf("failed to create partial unique index on bikes.registration_number: %w", err)
+	if db.Migrator().HasColumn(&models.User{}, "password") {
+		if err := db.Migrator().DropColumn(&models.User{}, "password"); err != nil {
+			log.Printf("Warning: Failed to drop 'password' column from users: %v", err)
+		} else {
+			log.Println("✅ Dropped 'password' column from users table")
+		}
+	}
+
+	// Migration 2: Add 'role' column if it doesn't exist (will be handled by AutoMigrate, but we can add default)
+	if !db.Migrator().HasColumn(&models.User{}, "role") {
+		// Add role column with default value
+		if err := db.Exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR NOT NULL DEFAULT 'developer'").Error; err != nil {
+			log.Printf("Warning: Failed to add 'role' column: %v", err)
+		} else {
+			log.Println("✅ Added 'role' column to users table")
+		}
 	}
 
 	log.Println("✅ Custom migrations completed")
@@ -88,8 +100,8 @@ func runCustomMigrations(db *gorm.DB) error {
 // Only use this in development/testing
 func DropAllTables(db *gorm.DB) error {
 	models := []interface{}{
+		&models.RefreshToken{}, // Drop refresh_tokens first due to foreign key
 		&models.User{},
-		&models.RefreshToken{},
 	}
 
 	for _, model := range models {

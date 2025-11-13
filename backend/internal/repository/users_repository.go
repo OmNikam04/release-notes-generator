@@ -6,10 +6,7 @@ import (
 	"gorm.io/gorm"
 )
 
-/*
-This defines what operations are supported for User and does not care how they are implemented.
-Any type that implements all these methods is a UserRepository.
-*/
+// UserRepository defines the interface for user data operations
 type UserRepository interface {
 	CreateUser(user *models.User) error
 	FindByEmail(email string) (*models.User, error)
@@ -18,19 +15,13 @@ type UserRepository interface {
 	Delete(id uuid.UUID) error
 }
 
-/*
-UserRepository is a concrete implementation of UserRepositoryInterface.
-  - An interface says what should be done.
-  - A concrete implementation says how it’s done.
-
-Actual working code that fulfills the contract defined by an interface.
-It’s the actual implementation of UserRepository interface.
-*/
+// userRepository is the concrete implementation of UserRepository
 type userRepository struct {
 	db *gorm.DB
 }
 
-func NewUserRepository(db *gorm.DB) *userRepository {
+// NewUserRepository creates a new user repository instance
+func NewUserRepository(db *gorm.DB) UserRepository {
 	return &userRepository{db: db}
 }
 

@@ -22,48 +22,6 @@ func NewUserHandler(userService service.UserService, cfg *config.Config) *UserHa
 	}
 }
 
-// CreateUser godoc
-// @Summary Create a new user
-// @Tags users
-// @Accept json
-// @Produce json
-// @Param user body dto.CreateUserRequest true "User data"
-// @Success 201 {object} dto.SuccessResponse
-// @Failure 400 {object} dto.ErrorResponse
-// @Router /users [post]
-func (h *UserHandler) CreateUser(c *fiber.Ctx) error {
-	var req dto.CreateUserRequest
-
-	if err := c.BodyParser(&req); err != nil {
-		logger.Error().Err(err).Msg("Invalid request body")
-		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
-			Error:   "invalid_request",
-			Message: "Invalid request body",
-		})
-	}
-
-	// Validate request
-	if err := ValidateStruct(c, &req); err != nil {
-		return err
-	}
-
-	user, err := h.userService.CreateUser(&req)
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
-			Error:   "creation_failed",
-			Message: err.Error(),
-		})
-	}
-
-	logger.Info().Interface("user", user).Msg("User created via API")
-
-	return c.Status(fiber.StatusCreated).JSON(dto.SuccessResponse{
-		Success: true,
-		Data:    user,
-		Message: "User created successfully",
-	})
-}
-
 // GetCurrentUser godoc
 // @Summary Get current user profile
 // @Tags users
@@ -94,57 +52,6 @@ func (h *UserHandler) GetCurrentUser(c *fiber.Ctx) error {
 	return c.JSON(dto.SuccessResponse{
 		Success: true,
 		Data:    user,
-	})
-}
-
-// UpdateCurrentUser godoc
-// @Summary Update current user profile
-// @Tags users
-// @Accept json
-// @Produce json
-// @Param user body dto.UpdateUserRequest true "User data to update"
-// @Success 200 {object} dto.SuccessResponse
-// @Failure 400 {object} dto.ErrorResponse
-// @Failure 401 {object} dto.ErrorResponse
-// @Failure 404 {object} dto.ErrorResponse
-// @Router /users/me [put]
-func (h *UserHandler) UpdateCurrentUser(c *fiber.Ctx) error {
-	// Extract authenticated user ID from JWT context (set by Auth middleware)
-	userID, ok := c.Locals("userID").(uuid.UUID)
-	if !ok {
-		logger.Error().Msg("Failed to extract userID from context")
-		return c.Status(fiber.StatusUnauthorized).JSON(dto.ErrorResponse{
-			Error:   "unauthorized",
-			Message: "Invalid user context",
-		})
-	}
-
-	var req dto.UpdateUserRequest
-	if err := c.BodyParser(&req); err != nil {
-		logger.Error().Err(err).Msg("Invalid request body")
-		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
-			Error:   "invalid_request",
-			Message: "Invalid request body",
-		})
-	}
-
-	// Validate request
-	if err := ValidateStruct(c, &req); err != nil {
-		return err
-	}
-
-	user, err := h.userService.UpdateUser(userID, &req)
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
-			Error:   "update_failed",
-			Message: err.Error(),
-		})
-	}
-
-	return c.JSON(dto.SuccessResponse{
-		Success: true,
-		Data:    user,
-		Message: "User updated successfully",
 	})
 }
 
@@ -181,7 +88,7 @@ func (h *UserHandler) DeleteCurrentUser(c *fiber.Ctx) error {
 }
 
 // Login godoc
-// @Summary User login
+// @Summary Simple user login (email + role only)
 // @Tags users
 // @Accept json
 // @Produce json
@@ -206,7 +113,7 @@ func (h *UserHandler) Login(c *fiber.Ctx) error {
 		return err
 	}
 
-	user, err := h.userService.Login(&req)
+	user, err := h.userService.SimpleLogin(&req)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(dto.ErrorResponse{
 			Error:   "login_failed",
@@ -214,8 +121,8 @@ func (h *UserHandler) Login(c *fiber.Ctx) error {
 		})
 	}
 
-	// Generate JWT token
-	token, err := utils.GenerateToken(user.ID, user.Email, h.config.JWTSecret)
+	// Generate JWT token with role
+	token, err := utils.GenerateToken(user.ID, user.Email, user.Role, h.config.JWTSecret)
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to generate JWT token")
 		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
@@ -242,8 +149,8 @@ func (h *UserHandler) Login(c *fiber.Ctx) error {
 			RefreshToken: refreshToken,
 			User: dto.UserResponse{
 				ID:        user.ID,
-				Name:      user.Name,
 				Email:     user.Email,
+				Role:      user.Role,
 				CreatedAt: user.CreatedAt,
 				UpdatedAt: user.UpdatedAt,
 			},
@@ -286,7 +193,7 @@ func (h *UserHandler) RefreshTokens(c *fiber.Ctx) error {
 		})
 	}
 
-	newAccessToken, err := utils.GenerateToken(user.ID, user.Email, h.config.JWTSecret)
+	newAccessToken, err := utils.GenerateToken(user.ID, user.Email, user.Role, h.config.JWTSecret)
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to generate new access token")
 		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{

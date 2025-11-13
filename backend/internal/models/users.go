@@ -13,9 +13,8 @@ type User struct {
 	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`
 
-	Name     string `json:"name" gorm:"not null"`
-	Email    string `json:"email" gorm:"unique;not null;index"`
-	Password string `json:"-" gorm:"not null"` // "-" hides password from JSON responses
+	Email    string  `json:"email" gorm:"unique;not null;index"`
+	Role     string  `json:"role" gorm:"not null;default:'developer'"` // manager or developer
 }
 
 // BeforeCreate hook to generate UUID before creating a new user

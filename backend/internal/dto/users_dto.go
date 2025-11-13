@@ -5,32 +5,17 @@ import (
 
 	"github.com/google/uuid"
 )
-
-// CreateUserRequest - for user registration
-type CreateUserRequest struct {
-	Name     string `json:"name" validate:"required"`
-	Email    string `json:"email" validate:"required,email"`
-	Password string `json:"password" validate:"required,min=6"`
-}
-
-// UpdateUserRequest - for updating user profile
-type UpdateUserRequest struct {
-	Name     string `json:"name" validate:"omitempty"`
-	Email    string `json:"email" validate:"omitempty,email"`
-	Password string `json:"password" validate:"omitempty,min=6"`
-}
-
-// LoginRequest - for user login
+// LoginRequest - for simple login (email + role only, no password)
 type LoginRequest struct {
-	Email    string `json:"email" validate:"required,email"`
-	Password string `json:"password" validate:"required"`
+	Email string `json:"email" validate:"required,email"`
+	Role  string `json:"role" validate:"required,oneof=manager developer"`
 }
 
 // UserResponse - user data without sensitive fields
 type UserResponse struct {
 	ID        uuid.UUID `json:"id"`
-	Name      string    `json:"name"`
 	Email     string    `json:"email"`
+	Role      string    `json:"role"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }

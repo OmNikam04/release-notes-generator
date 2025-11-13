@@ -11,16 +11,13 @@ import (
 	"github.com/omnikam04/release-notes-generator/internal/repository"
 	"github.com/omnikam04/release-notes-generator/internal/utils"
 
-	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
 type UserService interface {
-	CreateUser(req *dto.CreateUserRequest) (*dto.UserResponse, error)
 	GetUser(id uuid.UUID) (*dto.UserResponse, error)
-	UpdateUser(id uuid.UUID, req *dto.UpdateUserRequest) (*dto.UserResponse, error)
 	DeleteUser(id uuid.UUID) error
-	Login(req *dto.LoginRequest) (*models.User, error)
+	SimpleLogin(req *dto.LoginRequest) (*models.User, error)
 	Logout(refreshToken string) error
 	IssueRefreshToken(userID uuid.UUID) (string, error)
 	RefreshTokens(refreshToken string) (*models.User, string, error)
@@ -35,50 +32,6 @@ func NewUserService(userRepository repository.UserRepository, refreshRepository 
 	return &userService{userRepository: userRepository, refreshRepository: refreshRepository}
 }
 
-func (s *userService) CreateUser(req *dto.CreateUserRequest) (*dto.UserResponse, error) {
-	// Check if user exists
-	_, err := s.userRepository.FindByEmail(req.Email)
-	if err == nil {
-		// User found - duplicate email
-		logger.Warn().Str("email", req.Email).Msg("User already exists")
-		return nil, errors.New("user with this email already exists")
-	}
-	// If error is not "record not found", return the error
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		logger.Error().Err(err).Msg("Failed to check existing user")
-		return nil, err
-	}
-	// User doesn't exist - proceed with creation
-
-	// Hash password
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
-	if err != nil {
-		logger.Error().Err(err).Msg("Failed to hash password")
-		return nil, err
-	}
-
-	user := &models.User{
-		Name:     req.Name,
-		Email:    req.Email,
-		Password: string(hashedPassword),
-	}
-
-	if err := s.userRepository.CreateUser(user); err != nil {
-		logger.Error().Err(err).Msg("Failed to create user")
-		return nil, err
-	}
-
-	logger.Info().Str("user_id", user.ID.String()).Msg("User created successfully")
-
-	return &dto.UserResponse{
-		ID:        user.ID,
-		Name:      user.Name,
-		Email:     user.Email,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
-	}, nil
-}
-
 func (s *userService) GetUser(id uuid.UUID) (*dto.UserResponse, error) {
 	user, err := s.userRepository.FindByID(id)
 	if err != nil {
@@ -88,49 +41,8 @@ func (s *userService) GetUser(id uuid.UUID) (*dto.UserResponse, error) {
 
 	return &dto.UserResponse{
 		ID:        user.ID,
-		Name:      user.Name,
 		Email:     user.Email,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
-	}, nil
-}
-
-func (s *userService) UpdateUser(id uuid.UUID, req *dto.UpdateUserRequest) (*dto.UserResponse, error) {
-	user, err := s.userRepository.FindByID(id)
-	if err != nil {
-		logger.Error().Err(err).Str("user_id", id.String()).Msg("User not found")
-		return nil, errors.New("user not found")
-	}
-
-	// Update fields only if provided (not empty)
-	if req.Name != "" {
-		user.Name = req.Name
-	}
-	if req.Email != "" {
-		user.Email = req.Email
-	}
-
-	// Hash new password if provided
-	if req.Password != "" {
-		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
-		if err != nil {
-			logger.Error().Err(err).Msg("Failed to hash password")
-			return nil, err
-		}
-		user.Password = string(hashedPassword)
-	}
-
-	if err := s.userRepository.Update(user); err != nil {
-		logger.Error().Err(err).Msg("Failed to update user")
-		return nil, err
-	}
-
-	logger.Info().Str("user_id", user.ID.String()).Msg("User updated successfully")
-
-	return &dto.UserResponse{
-		ID:        user.ID,
-		Name:      user.Name,
-		Email:     user.Email,
+		Role:      user.Role,
 		CreatedAt: user.CreatedAt,
 		UpdatedAt: user.UpdatedAt,
 	}, nil
@@ -152,23 +64,37 @@ func (s *userService) DeleteUser(id uuid.UUID) error {
 	return nil
 }
 
-func (s *userService) Login(req *dto.LoginRequest) (*models.User, error) {
-	// Find user by email
+// SimpleLogin - auto-creates user if not exists, no password required
+func (s *userService) SimpleLogin(req *dto.LoginRequest) (*models.User, error) {
+	// Try to find user by email
 	user, err := s.userRepository.FindByEmail(req.Email)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			logger.Warn().Str("email", req.Email).Msg("Login attempt with non-existent email")
-			return nil, errors.New("invalid email or password")
+			// User doesn't exist - create new user
+			user = &models.User{
+				Email: req.Email,
+				Role:  req.Role,
+			}
+			if err := s.userRepository.CreateUser(user); err != nil {
+				logger.Error().Err(err).Msg("Failed to create user during simple login")
+				return nil, errors.New("login failed")
+			}
+			logger.Info().Str("user_id", user.ID.String()).Str("email", user.Email).Msg("New user created via simple login")
+			return user, nil
 		}
 		logger.Error().Err(err).Msg("Failed to find user by email")
 		return nil, errors.New("login failed")
 	}
 
-	// Compare password
-	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password))
-	if err != nil {
-		logger.Warn().Str("email", req.Email).Msg("Login attempt with incorrect password")
-		return nil, errors.New("invalid email or password")
+	// User exists - update role if different
+	if user.Role != req.Role {
+		user.Role = req.Role
+		if err := s.userRepository.Update(user); err != nil {
+			logger.Warn().Err(err).Msg("Failed to update user role during login")
+			// Don't fail login if role update fails
+		} else {
+			logger.Info().Str("user_id", user.ID.String()).Str("new_role", req.Role).Msg("User role updated during login")
+		}
 	}
 
 	logger.Info().Str("user_id", user.ID.String()).Msg("User logged in successfully")

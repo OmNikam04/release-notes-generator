@@ -1,0 +1,136 @@
+# ============================================
+# Go
+# ============================================
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Go workspace file (for multi-module workspaces)
+go.work
+
+# Compiled binary output
+backend/tmp/
+backend/main
+
+# ============================================
+# Environment & Configuration
+# ============================================
+.env
+.env.local
+.env.*.local
+*.env
+
+# ============================================
+# AI-Generated Documentation
+# ============================================
+# Exclude AI-generated explanation files
+**/SIMPLE_LOGIN_FLOW.md
+**/*_EXPLANATION.md
+**/*_FLOW.md
+**/*_GUIDE.md
+
+# ============================================
+# IDE & Editor
+# ============================================
+# VSCode
+.vscode/
+*.code-workspace
+
+# JetBrains IDEs (GoLand, IntelliJ, etc.)
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+.\#*
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# ============================================
+# Operating System
+# ============================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+
+# ============================================
+# Docker
+# ============================================
+# Don't ignore docker-compose.yml and Dockerfile
+# But ignore any local overrides
+docker-compose.override.yml
+
+# ============================================
+# Logs
+# ============================================
+*.log
+logs/
+*.log.*
+
+# ============================================
+# Build & Dependencies
+# ============================================
+# Air (hot reload) temporary directory
+tmp/
+**/tmp/
+
+# Vendor directory (if using vendoring)
+vendor/
+
+# ============================================
+# Testing
+# ============================================
+coverage.txt
+coverage.html
+*.cover
+
+# ============================================
+# Database
+# ============================================
+# Local database files (if any)
+*.db
+*.sqlite
+*.sqlite3
+
+# Database dumps
+*.sql.gz
+*.dump
+
+# ============================================
+# Misc
+# ============================================
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
