@@ -3,6 +3,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { logout } from '../store/slices/authSlice';
 import { syncAPI, authAPI, releaseNotesAPI, bugsAPI } from '../services/api';
+import Toast from '../components/Toast';
 import './ReleaseAdmin.css';
 
 // Release mapping: release name -> blocking bug ID
@@ -32,6 +33,9 @@ const ReleaseAdmin = () => {
   const [releaseResult, setReleaseResult] = useState(null);
   const [releaseError, setReleaseError] = useState('');
   const [releaseCurrentPage, setReleaseCurrentPage] = useState(0);
+
+  // Toast state
+  const [toast, setToast] = useState({ show: false, message: '', type: 'info' });
 
   // Check authentication and authorization on component mount
   useEffect(() => {
@@ -130,11 +134,10 @@ const ReleaseAdmin = () => {
       // Build custom query using blocking bug ID
       const query = `blocks==${blockingBugId}`;
 
-      const result = await syncAPI.customBugsbyQuery({
+      // Use syncByQuery to sync bugs to DB and trigger AI generation
+      const result = await syncAPI.syncByQuery({
         query: query,
-        limit: '100',
-        sortBy: 'lastUpdateTime',
-        order: 'desc'
+        limit: 3 
       });
 
       setReleaseResult(result);
@@ -290,24 +293,56 @@ const ReleaseAdmin = () => {
             <div className="result-box">
               <h3>✅ Sync Result</h3>
               <div className="result-content">
-                {releaseResult.bugs && releaseResult.bugs.length === 0 ? (
+                {releaseResult.total_fetched === 0 ? (
                   <p className="no-results">No bugs found for this release</p>
                 ) : (
                   <>
-                    <p><strong>Total Bugs Found:</strong> {releaseResult.bugs ? releaseResult.bugs.length : 0}</p>
+                    <p><strong>Total Bugs Fetched:</strong> {releaseResult.total_fetched}</p>
+                    <p><strong>New Bugs:</strong> {releaseResult.new_bugs}</p>
+                    <p><strong>Updated Bugs:</strong> {releaseResult.updated_bugs}</p>
+                    {releaseResult.failed_bugs > 0 && (
+                      <p className="error-text"><strong>Failed Bugs:</strong> {releaseResult.failed_bugs}</p>
+                    )}
+                    <p><strong>Synced At:</strong> {new Date(releaseResult.synced_at).toLocaleString()}</p>
+                    <p className="success-text">🤖 AI release notes generation started in background</p>
 
-                    {releaseResult.bugs && releaseResult.bugs.length > 0 && (
-                      <div className="bugs-pagination-container">
+                    {/* Display synced bugs */}
+                    {releaseResult.synced_bugs && releaseResult.synced_bugs.length > 0 && (
+                      <div className="bugs-pagination-container" style={{ marginTop: '20px' }}>
+                        <h4>Synced Bugs:</h4>
                         <div className="bugs-list-scrollable">
-                          {releaseResult.bugs.slice(releaseCurrentPage * 5, (releaseCurrentPage + 1) * 5).map((bug, idx) => (
+                          {releaseResult.synced_bugs.slice(releaseCurrentPage * 5, (releaseCurrentPage + 1) * 5).map((bug, idx) => (
                             <div key={idx} className="bug-item">
-                              <p className="bug-title">• {bug.title}</p>
-                              <p className="bug-meta">ID: {bug.id} | Status: {bug.status} | Severity: {bug.severity}</p>
+                              {/* <p className=" bug-meta"><strong>Title:</strong>{bug.title}</p> */}
+                              <p className="bug-meta">
+                                <strong>Bugsby ID:</strong> {bug.bugsby_id} |
+                                <strong> Status:</strong> {bug.status} |
+                                <strong> Severity:</strong> {bug.severity}
+                              </p>
+                              {bug.assignee_email && (
+                                <p className="bug-meta">
+                                  <strong>Assignee:</strong> {bug.assignee_email}
+                                  <button
+                                    className="copy-btn"
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(bug.assignee_email);
+                                      setToast({
+                                        show: true,
+                                        message: `Copied: ${bug.assignee_email}`,
+                                        type: 'success'
+                                      });
+                                    }}
+                                    style={{ marginLeft: '10px', padding: '2px 8px', fontSize: '12px' }}
+                                  >
+                                    📋 Copy
+                                  </button>
+                                </p>
+                              )}
                             </div>
                           ))}
                         </div>
 
-                        {releaseResult.bugs.length > 5 && (
+                        {releaseResult.synced_bugs.length > 5 && (
                           <div className="pagination-controls">
                             <button
                               className="pagination-btn"
@@ -317,17 +352,28 @@ const ReleaseAdmin = () => {
                               ← Previous
                             </button>
                             <span className="pagination-info">
-                              Page {releaseCurrentPage + 1} of {Math.ceil(releaseResult.bugs.length / 5)}
+                              Page {releaseCurrentPage + 1} of {Math.ceil(releaseResult.synced_bugs.length / 5)}
                             </span>
                             <button
                               className="pagination-btn"
                               onClick={() => setReleaseCurrentPage(releaseCurrentPage + 1)}
-                              disabled={(releaseCurrentPage + 1) * 5 >= releaseResult.bugs.length}
+                              disabled={(releaseCurrentPage + 1) * 5 >= releaseResult.synced_bugs.length}
                             >
                               Next →
                             </button>
                           </div>
                         )}
+                      </div>
+                    )}
+
+                    {releaseResult.errors && releaseResult.errors.length > 0 && (
+                      <div className="errors-list">
+                        <p><strong>Errors:</strong></p>
+                        <ul>
+                          {releaseResult.errors.map((error, idx) => (
+                            <li key={idx} className="error-text">{error}</li>
+                          ))}
+                        </ul>
                       </div>
                     )}
                   </>
@@ -337,6 +383,16 @@ const ReleaseAdmin = () => {
           )}
         </div>
       </div>
+
+      {/* Toast Notification */}
+      <Toast
+        show={toast.show}
+        message={toast.message}
+        type={toast.type}
+        onClose={() => setToast({ ...toast, show: false })}
+        duration={3000}
+        position="bottom-right"
+      />
     </div>
   );
 };

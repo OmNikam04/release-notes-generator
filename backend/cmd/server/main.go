@@ -135,7 +135,7 @@ func main() {
 
 	// Initialize handlers (pass config for JWT)
 	userHandler := handlers.NewUserHandler(userService, cfg)
-	bugHandler := handlers.NewBugHandler(bugsbySyncService, bugRepo, bugsbyClient, releaseNoteService)
+	bugHandler := handlers.NewBugHandler(bugsbySyncService, bugRepo, userRepo, bugsbyClient, releaseNoteService)
 	releaseNoteHandler := handlers.NewReleaseNoteHandler(releaseNoteService)
 
 	// Create handlers struct for routing

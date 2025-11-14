@@ -23,13 +23,14 @@ type BugsbySyncService interface {
 
 // SyncResult represents the result of a sync operation
 type SyncResult struct {
-	TotalFetched int         `json:"total_fetched"`
-	NewBugs      int         `json:"new_bugs"`
-	UpdatedBugs  int         `json:"updated_bugs"`
-	FailedBugs   int         `json:"failed_bugs"`
-	SyncedAt     time.Time   `json:"synced_at"`
-	Errors       []string    `json:"errors,omitempty"`
-	SyncedBugIDs []uuid.UUID `json:"synced_bug_ids,omitempty"` // UUIDs of successfully synced bugs
+	TotalFetched int           `json:"total_fetched"`
+	NewBugs      int           `json:"new_bugs"`
+	UpdatedBugs  int           `json:"updated_bugs"`
+	FailedBugs   int           `json:"failed_bugs"`
+	SyncedAt     time.Time     `json:"synced_at"`
+	Errors       []string      `json:"errors,omitempty"`
+	SyncedBugIDs []uuid.UUID   `json:"synced_bug_ids,omitempty"` // UUIDs of successfully synced bugs
+	SyncedBugs   []*models.Bug `json:"synced_bugs,omitempty"`    // Full bug details for UI display
 }
 
 // SyncStatus represents the sync status for a release
@@ -71,6 +72,17 @@ func (s *bugsbySyncService) SyncRelease(ctx context.Context, release string, fil
 		SyncedBugIDs: []uuid.UUID{},
 	}
 
+	// Add textQuery filter to only fetch bugs with empty releaseNote field
+	// This prevents syncing bugs that already have release notes in Bugsby
+	if filters == nil {
+		filters = &bugsby.BugFilters{}
+	}
+	if filters.TextQuery == "" {
+		// Use Elasticsearch simple query string syntax to find bugs with empty or missing releaseNote
+		filters.TextQuery = "NOT _exists_:releaseNote"
+		logger.Info().Msg("Added textQuery filter to fetch only bugs without release notes")
+	}
+
 	// Fetch bugs from Bugsby
 	bugsbyResp, err := s.bugsbyClient.GetBugsByRelease(ctx, release, filters)
 	if err != nil {
@@ -95,6 +107,7 @@ func (s *bugsbySyncService) SyncRelease(ctx context.Context, release string, fil
 	}
 
 	// Process each bug
+	// Note: Bugsby already filtered out bugs with release notes via textQuery filter
 	for i := range bugsbyResp.Bugs {
 		bugsbyBug := &bugsbyResp.Bugs[i]
 		bugsbyIDStr := fmt.Sprintf("%d", bugsbyBug.ID)
@@ -182,6 +195,7 @@ func (s *bugsbySyncService) SyncByQuery(ctx context.Context, query string, limit
 		SyncedAt:     time.Now(),
 		Errors:       []string{},
 		SyncedBugIDs: []uuid.UUID{},
+		SyncedBugs:   []*models.Bug{},
 	}
 
 	// Set default limit if not provided
@@ -227,7 +241,7 @@ func (s *bugsbySyncService) SyncByQuery(ctx context.Context, query string, limit
 			continue
 		}
 
-		// Get the synced bug to retrieve its UUID
+		// Get the synced bug to retrieve its UUID and full details
 		syncedBug, err := s.bugRepository.FindByBugsbyID(bugsbyIDStr)
 		if err != nil {
 			logger.Error().Err(err).Str("bugsby_id", bugsbyIDStr).Msg("Failed to retrieve synced bug UUID")
@@ -236,6 +250,9 @@ func (s *bugsbySyncService) SyncByQuery(ctx context.Context, query string, limit
 
 		// Track the bug UUID for AI generation
 		result.SyncedBugIDs = append(result.SyncedBugIDs, syncedBug.ID)
+
+		// Track the full bug details for UI display
+		result.SyncedBugs = append(result.SyncedBugs, syncedBug)
 
 		// Check if it was a new bug or update
 		// This is a simple heuristic - could be improved

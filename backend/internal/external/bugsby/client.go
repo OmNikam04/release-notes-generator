@@ -384,12 +384,35 @@ func (c *client) GetBugsByRelease(ctx context.Context, release string, filters *
 		return nil, fmt.Errorf("no valid filters provided")
 	}
 
+	// Build params with query and optional textQuery
+	params := map[string]string{
+		"q":     query,
+		"limit": "1000",
+	}
+
+	// Add textQuery if provided (for searching in alias, title, description, releaseNote, comment, attachment)
+	if filters.TextQuery != "" {
+		params["textQuery"] = filters.TextQuery
+	}
+
 	logger.Info().
 		Str("release", release).
 		Str("query", query).
+		Str("textQuery", filters.TextQuery).
 		Msg("Fetching bugs from Bugsby")
 
-	return c.Query(ctx, query, 1000) // Default limit for release queries
+	// Use Get directly with params instead of Query method
+	resp, err := c.Get(ctx, "bugs", params)
+	if err != nil {
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	var result BugsbyResponse
+	if err := parseResponse(resp, &result); err != nil {
+		return nil, err
+	}
+
+	return &result, nil
 }
 
 // GetBugComments retrieves all comments for a specific bug

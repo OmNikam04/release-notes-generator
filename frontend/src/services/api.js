@@ -465,9 +465,29 @@ export const syncAPI = {
     }
   },
 
+  // Sync bugs by custom query (syncs to DB and triggers AI generation)
+  syncByQuery: async (queryData) => {
+    console.log('[API] Syncing bugs by custom query:', queryData);
+
+    try {
+      const body = {
+        query: queryData.query,
+        limit: queryData.limit || 3 
+      };
+
+      const response = await apiCall('/bugsby/sync-by-query', 'POST', body);
+      console.log('[API] Bugs synced successfully by query:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('[API] Failed to sync bugs by query:', error.message);
+      throw error;
+    }
+  },
+
   // Custom Bugsby Query (Query 11 - Testing endpoint, no auth required)
+  // This endpoint only fetches bugs from Bugsby without syncing to DB
   customBugsbyQuery: async (queryData) => {
-    console.log('[API] Executing custom Bugsby query:', queryData);
+    console.log('[API] Executing custom Bugsby query (testing only):', queryData);
 
     try {
       const body = {

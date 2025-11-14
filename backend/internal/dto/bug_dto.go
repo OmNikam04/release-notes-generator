@@ -30,25 +30,27 @@ func ToReleaseNoteResponse(note *models.ReleaseNote) *ReleaseNoteResponse {
 
 // BugResponse represents a bug in API responses
 type BugResponse struct {
-	ID           uuid.UUID            `json:"id"`
-	CreatedAt    time.Time            `json:"created_at"`
-	UpdatedAt    time.Time            `json:"updated_at"`
-	BugsbyID     string               `json:"bugsby_id"`
-	BugsbyURL    string               `json:"bugsby_url"`
-	Title        string               `json:"title"`
-	Description  *string              `json:"description"`
-	Severity     string               `json:"severity"`
-	Priority     string               `json:"priority"`
-	BugType      string               `json:"bug_type"`
-	CVENumber    *string              `json:"cve_number"`
-	AssignedTo   *uuid.UUID           `json:"assigned_to"`
-	ManagerID    *uuid.UUID           `json:"manager_id"`
-	Release      string               `json:"release"`
-	Component    string               `json:"component"`
-	Status       string               `json:"status"`
-	LastSyncedAt *time.Time           `json:"last_synced_at"`
-	SyncStatus   string               `json:"sync_status"`
-	ReleaseNote  *ReleaseNoteResponse `json:"release_note,omitempty"`
+	ID            uuid.UUID            `json:"id"`
+	CreatedAt     time.Time            `json:"created_at"`
+	UpdatedAt     time.Time            `json:"updated_at"`
+	BugsbyID      string               `json:"bugsby_id"`
+	BugsbyURL     string               `json:"bugsby_url"`
+	Title         string               `json:"title"`
+	Description   *string              `json:"description"`
+	Severity      string               `json:"severity"`
+	Priority      string               `json:"priority"`
+	BugType       string               `json:"bug_type"`
+	CVENumber     *string              `json:"cve_number"`
+	AssignedTo    *uuid.UUID           `json:"assigned_to"`
+	AssigneeEmail *string              `json:"assignee_email,omitempty"` // Email of assigned user
+	ManagerID     *uuid.UUID           `json:"manager_id"`
+	ManagerEmail  *string              `json:"manager_email,omitempty"` // Email of manager
+	Release       string               `json:"release"`
+	Component     string               `json:"component"`
+	Status        string               `json:"status"`
+	LastSyncedAt  *time.Time           `json:"last_synced_at"`
+	SyncStatus    string               `json:"sync_status"`
+	ReleaseNote   *ReleaseNoteResponse `json:"release_note,omitempty"`
 }
 
 // BugListResponse represents a paginated list of bugs
@@ -82,12 +84,13 @@ type SyncByQueryRequest struct {
 
 // SyncResultResponse represents the result of a sync operation
 type SyncResultResponse struct {
-	TotalFetched int       `json:"total_fetched"`
-	NewBugs      int       `json:"new_bugs"`
-	UpdatedBugs  int       `json:"updated_bugs"`
-	FailedBugs   int       `json:"failed_bugs"`
-	SyncedAt     time.Time `json:"synced_at"`
-	Errors       []string  `json:"errors,omitempty"`
+	TotalFetched int           `json:"total_fetched"`
+	NewBugs      int           `json:"new_bugs"`
+	UpdatedBugs  int           `json:"updated_bugs"`
+	FailedBugs   int           `json:"failed_bugs"`
+	SyncedAt     time.Time     `json:"synced_at"`
+	Errors       []string      `json:"errors,omitempty"`
+	SyncedBugs   []BugResponse `json:"synced_bugs,omitempty"` // Full bug details for UI display
 }
 
 // SyncStatusResponse represents the sync status for a release

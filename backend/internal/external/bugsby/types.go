@@ -120,6 +120,7 @@ type BugFilters struct {
 	Component  string   // Filter by component
 	AssignedTo string   // Filter by assigned user
 	Manager    string   // Filter by manager
+	TextQuery  string   // Elasticsearch simple query string for text search (searches alias, title, description, releaseNote, comment, attachment)
 }
 
 // BuildQuery constructs a Bugsby query string from filters

@@ -18,6 +18,7 @@ import (
 type BugHandler struct {
 	bugsbySyncService  service.BugsbySyncService
 	bugRepository      repository.BugRepository
+	userRepository     repository.UserRepository
 	bugsbyClient       bugsby.Client
 	releaseNoteService service.ReleaseNoteService
 }
@@ -25,12 +26,14 @@ type BugHandler struct {
 func NewBugHandler(
 	bugsbySyncService service.BugsbySyncService,
 	bugRepository repository.BugRepository,
+	userRepository repository.UserRepository,
 	bugsbyClient bugsby.Client,
 	releaseNoteService service.ReleaseNoteService,
 ) *BugHandler {
 	return &BugHandler{
 		bugsbySyncService:  bugsbySyncService,
 		bugRepository:      bugRepository,
+		userRepository:     userRepository,
 		bugsbyClient:       bugsbyClient,
 		releaseNoteService: releaseNoteService,
 	}
@@ -157,7 +160,7 @@ func (h *BugHandler) SyncByQuery(c *fiber.Ctx) error {
 	// Set default limit if not provided
 	limit := req.Limit
 	if limit <= 0 {
-		limit = 25 // Changed from 100 to 25 for demo purposes
+		limit = 5 // Changed from 100 to 25 for demo purposes
 	}
 
 	// Perform sync
@@ -184,6 +187,26 @@ func (h *BugHandler) SyncByQuery(c *fiber.Ctx) error {
 		Int("ai_generation_queued", len(result.SyncedBugIDs)).
 		Msg("Bugs synced successfully by query, AI generation started in background")
 
+	// Map synced bugs to DTOs for UI display with user emails
+	syncedBugs := make([]dto.BugResponse, 0, len(result.SyncedBugs))
+	for _, bug := range result.SyncedBugs {
+		if bugDTO := dto.ToBugResponse(bug); bugDTO != nil {
+			// Populate assignee email
+			if bug.AssignedTo != nil {
+				if assignee, err := h.userRepository.FindByID(*bug.AssignedTo); err == nil {
+					bugDTO.AssigneeEmail = &assignee.Email
+				}
+			}
+			// Populate manager email
+			if bug.ManagerID != nil {
+				if manager, err := h.userRepository.FindByID(*bug.ManagerID); err == nil {
+					bugDTO.ManagerEmail = &manager.Email
+				}
+			}
+			syncedBugs = append(syncedBugs, *bugDTO)
+		}
+	}
+
 	response := &dto.SyncResultResponse{
 		TotalFetched: result.TotalFetched,
 		NewBugs:      result.NewBugs,
@@ -191,6 +214,7 @@ func (h *BugHandler) SyncByQuery(c *fiber.Ctx) error {
 		FailedBugs:   result.FailedBugs,
 		SyncedAt:     result.SyncedAt,
 		Errors:       result.Errors,
+		SyncedBugs:   syncedBugs,
 	}
 
 	return c.Status(fiber.StatusOK).JSON(dto.SuccessResponse{
