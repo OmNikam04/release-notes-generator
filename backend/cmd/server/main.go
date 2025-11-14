@@ -131,7 +131,7 @@ func main() {
 		appLogger.Warn().Msg("⚠️  Feedback and pattern services disabled (no AI service)")
 	}
 
-	releaseNoteService := service.NewReleaseNoteService(releaseNoteRepo, bugRepo, bugsbyClient, aiService, feedbackService, database)
+	releaseNoteService := service.NewReleaseNoteService(releaseNoteRepo, bugRepo, bugsbyClient, aiService, feedbackService, patternService, database)
 
 	// Initialize handlers (pass config for JWT)
 	userHandler := handlers.NewUserHandler(userService, cfg)

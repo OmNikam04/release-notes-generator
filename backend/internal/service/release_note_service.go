@@ -106,6 +106,7 @@ type releaseNoteService struct {
 	bugsbyClient    bugsby.Client
 	aiService       AIService
 	feedbackService FeedbackService
+	patternService  PatternService // For pattern-aware generation
 	db              *gorm.DB
 }
 
@@ -116,6 +117,7 @@ func NewReleaseNoteService(
 	bugsbyClient bugsby.Client,
 	aiService AIService,
 	feedbackService FeedbackService,
+	patternService PatternService,
 	db *gorm.DB,
 ) ReleaseNoteService {
 	return &releaseNoteService{
@@ -124,6 +126,7 @@ func NewReleaseNoteService(
 		bugsbyClient:    bugsbyClient,
 		aiService:       aiService,
 		feedbackService: feedbackService,
+		patternService:  patternService,
 		db:              db,
 	}
 }
@@ -296,6 +299,7 @@ func (s *releaseNoteService) GenerateReleaseNote(
 			}
 
 			// Generate with AI
+			// TODO: After demo, change this to use generateWithAI() helper for pattern-aware generation
 			aiResponse, aiErr := s.aiService.GenerateReleaseNote(ctx, bug, bugContext.Comments)
 			if aiErr == nil && aiResponse != nil && aiResponse.ReleaseNote != "" {
 				// AI generation successful
@@ -629,4 +633,41 @@ func (s *releaseNoteService) RejectReleaseNote(
 		Msg("Release note rejected")
 
 	return nil
+}
+
+// generateWithAI is a helper method that intelligently chooses between standard and pattern-aware generation
+// This method will be used after the demo to enable pattern-aware generation
+func (s *releaseNoteService) generateWithAI(
+	ctx context.Context,
+	bug *models.Bug,
+	commits []*bugsby.ParsedCommitInfo,
+	usePatterns bool,
+) (*AIReleaseNoteResponse, error) {
+	// If pattern-aware generation is enabled and pattern service is available
+	if usePatterns && s.patternService != nil {
+		logger.Info().
+			Str("bug_id", bug.ID.String()).
+			Msg("Attempting pattern-aware generation")
+
+		// Try pattern-aware generation
+		aiResponse, err := s.aiService.GenerateReleaseNoteWithPatterns(ctx, bug, commits, s.patternService)
+		if err == nil && aiResponse != nil && aiResponse.ReleaseNote != "" {
+			logger.Info().
+				Str("bug_id", bug.ID.String()).
+				Msg("Pattern-aware generation successful")
+			return aiResponse, nil
+		}
+
+		// If pattern-aware generation fails, fall back to standard generation
+		logger.Warn().
+			Err(err).
+			Str("bug_id", bug.ID.String()).
+			Msg("Pattern-aware generation failed, falling back to standard generation")
+	}
+
+	// Standard generation (current behavior)
+	logger.Info().
+		Str("bug_id", bug.ID.String()).
+		Msg("Using standard AI generation")
+	return s.aiService.GenerateReleaseNote(ctx, bug, commits)
 }

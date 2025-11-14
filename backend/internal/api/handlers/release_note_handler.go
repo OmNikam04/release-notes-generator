@@ -145,8 +145,8 @@ func (h *ReleaseNoteHandler) GetReleaseNotes(c *fiber.Ctx) error {
 	// Build filters
 	filters := &service.ReleaseNotesFilters{
 		Status:    req.Status,
-		Release:   req.Release,
-		Component: req.Component,
+		// Release:   req.Release,
+		// Component: req.Component,
 	}
 
 	// If assigned_to_me is true, filter by current user
