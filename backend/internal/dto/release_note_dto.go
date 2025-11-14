@@ -86,22 +86,24 @@ type BugContextResponse struct {
 
 // ReleaseNoteDetailResponse represents a detailed release note response
 type ReleaseNoteDetailResponse struct {
-	ID              uuid.UUID    `json:"id"`
-	BugID           uuid.UUID    `json:"bug_id"`
-	Content         string       `json:"content"`
-	Version         int          `json:"version"`
-	GeneratedBy     string       `json:"generated_by"`
-	AIModel         *string      `json:"ai_model,omitempty"`
-	AIConfidence    *float64     `json:"ai_confidence,omitempty"`
-	Status          string       `json:"status"`
-	CreatedByID     *uuid.UUID   `json:"created_by_id,omitempty"`
-	ApprovedByDevID *uuid.UUID   `json:"approved_by_dev_id,omitempty"`
-	ApprovedByMgrID *uuid.UUID   `json:"approved_by_mgr_id,omitempty"`
-	DevApprovedAt   *time.Time   `json:"dev_approved_at,omitempty"`
-	MgrApprovedAt   *time.Time   `json:"mgr_approved_at,omitempty"`
-	CreatedAt       time.Time    `json:"created_at"`
-	UpdatedAt       time.Time    `json:"updated_at"`
-	Bug             *BugResponse `json:"bug,omitempty"`
+	ID                    uuid.UUID    `json:"id"`
+	BugID                 uuid.UUID    `json:"bug_id"`
+	Content               string       `json:"content"`
+	Version               int          `json:"version"`
+	GeneratedBy           string       `json:"generated_by"`
+	AIModel               *string      `json:"ai_model,omitempty"`
+	AIConfidence          *float64     `json:"ai_confidence,omitempty"`
+	AIReasoning           *string      `json:"ai_reasoning,omitempty"`
+	AIAlternativeVersions *string      `json:"ai_alternative_versions,omitempty"`
+	Status                string       `json:"status"`
+	CreatedByID           *uuid.UUID   `json:"created_by_id,omitempty"`
+	ApprovedByDevID       *uuid.UUID   `json:"approved_by_dev_id,omitempty"`
+	ApprovedByMgrID       *uuid.UUID   `json:"approved_by_mgr_id,omitempty"`
+	DevApprovedAt         *time.Time   `json:"dev_approved_at,omitempty"`
+	MgrApprovedAt         *time.Time   `json:"mgr_approved_at,omitempty"`
+	CreatedAt             time.Time    `json:"created_at"`
+	UpdatedAt             time.Time    `json:"updated_at"`
+	Bug                   *BugResponse `json:"bug,omitempty"`
 }
 
 // PendingBugsResponse represents a list of bugs without release notes
@@ -166,21 +168,23 @@ func ToReleaseNoteDetailResponse(note *models.ReleaseNote) *ReleaseNoteDetailRes
 	}
 
 	response := &ReleaseNoteDetailResponse{
-		ID:              note.ID,
-		BugID:           note.BugID,
-		Content:         note.Content,
-		Version:         note.Version,
-		GeneratedBy:     note.GeneratedBy,
-		AIModel:         note.AIModel,
-		AIConfidence:    note.AIConfidence,
-		Status:          note.Status,
-		CreatedByID:     note.CreatedByID,
-		ApprovedByDevID: note.ApprovedByDevID,
-		ApprovedByMgrID: note.ApprovedByMgrID,
-		DevApprovedAt:   note.DevApprovedAt,
-		MgrApprovedAt:   note.MgrApprovedAt,
-		CreatedAt:       note.CreatedAt,
-		UpdatedAt:       note.UpdatedAt,
+		ID:                    note.ID,
+		BugID:                 note.BugID,
+		Content:               note.Content,
+		Version:               note.Version,
+		GeneratedBy:           note.GeneratedBy,
+		AIModel:               note.AIModel,
+		AIConfidence:          note.AIConfidence,
+		AIReasoning:           note.AIReasoning,
+		AIAlternativeVersions: note.AIAlternativeVersions,
+		Status:                note.Status,
+		CreatedByID:           note.CreatedByID,
+		ApprovedByDevID:       note.ApprovedByDevID,
+		ApprovedByMgrID:       note.ApprovedByMgrID,
+		DevApprovedAt:         note.DevApprovedAt,
+		MgrApprovedAt:         note.MgrApprovedAt,
+		CreatedAt:             note.CreatedAt,
+		UpdatedAt:             note.UpdatedAt,
 	}
 
 	// Include bug if preloaded
