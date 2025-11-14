@@ -338,11 +338,19 @@ Authorization: Bearer <token>
 
 All sync endpoints require **Manager role**.
 
+⚡ **NEW: Auto-Generation Feature** - All sync endpoints now automatically generate AI release notes in the background after syncing bugs. This means:
+- ✅ Sync returns immediately (non-blocking)
+- ✅ AI generation runs asynchronously in background
+- ✅ Release notes are ready within seconds after sync
+- ✅ Frontend can immediately fetch release notes without additional API calls
+- ✅ Skips bugs that already have release notes (no duplicates)
+- ✅ Graceful error handling (logs failures, continues with other bugs)
+
 ### 10. Sync Bug by Bugsby ID
 
 **Endpoint:** `POST /api/v1/bugsby/sync/:bugsby_id`
 **Authentication:** Required (Manager only)
-**Description:** Sync a single bug from Bugsby by its Bugsby ID
+**Description:** Sync a single bug from Bugsby by its Bugsby ID. **Automatically generates AI release note in background.**
 
 **Path Parameters:**
 - `bugsby_id` (int): Bugsby bug ID (e.g., 1184600)
@@ -363,9 +371,23 @@ Authorization: Bearer <token>
     "updated_bugs": 0,
     "failed_bugs": 0,
     "synced_at": "2025-01-15T10:30:00Z",
+    "synced_bug_ids": ["fd108a72-a6d4-4b85-9266-54286309421f"],
     "errors": []
   }
 }
+```
+
+**What Happens After Sync:**
+1. ✅ Sync response returns immediately
+2. 🤖 AI generation starts in background (async)
+3. ⏱️ Release note ready within 2-5 seconds
+4. 📋 Frontend can fetch release notes using `GET /api/v1/release-notes`
+
+**Server Logs (Background Process):**
+```
+🤖 Starting background AI release note generation bug_count=1 source=SyncBugByID
+✅ Successfully auto-generated AI release note bug_id=fd108a72-... source=SyncBugByID
+🎉 Background AI release note generation completed total=1 success=1 skipped=0 failed=0
 ```
 
 ---
@@ -374,18 +396,22 @@ Authorization: Bearer <token>
 
 **Endpoint:** `POST /api/v1/bugsby/sync-by-query`
 **Authentication:** Required (Manager only)
-**Description:** Sync bugs using a custom Bugsby query
+**Description:** Sync bugs using a custom Bugsby query. **Automatically generates AI release notes for all synced bugs in background.**
 
 **Request Body:**
 ```json
 {
-  "query": "blocks==1229583",
-  "limit": 100
+  "query": "blocks==wifi.nainital",
+  "limit": 25
 }
 ```
 
+**Fields:**
+- `query` (string, required): Bugsby query string
+- `limit` (int, optional): Maximum number of bugs to sync (default: 25, max: 100)
+
 **Query Examples:**
-- `"blocks==1229583"` - Get bugs blocking bug 1229583
+- `"blocks==wifi.nainital"` - Get bugs blocking wifi.nainital release
 - `"assignee==user@arista.com"` - Get bugs assigned to user
 - `"release==wifi.nainital AND severity==critical"` - Complex query
 
@@ -394,15 +420,38 @@ Authorization: Bearer <token>
 {
   "success": true,
   "data": {
-    "total_fetched": 10,
-    "new_bugs": 8,
-    "updated_bugs": 2,
+    "total_fetched": 25,
+    "new_bugs": 20,
+    "updated_bugs": 5,
     "failed_bugs": 0,
     "synced_at": "2025-01-15T10:30:00Z",
+    "synced_bug_ids": [
+      "fd108a72-a6d4-4b85-9266-54286309421f",
+      "abc123-def456-...",
+      "..."
+    ],
     "errors": []
   }
 }
 ```
+
+**What Happens After Sync:**
+1. ✅ Sync response returns immediately with synced bug IDs
+2. 🤖 AI generation starts for all 25 bugs in background (async)
+3. ⏱️ Release notes ready within 30-60 seconds (depending on bug count)
+4. 📋 Frontend can poll `GET /api/v1/release-notes` to see notes as they appear
+5. ⏭️ Skips bugs that already have release notes
+
+**Server Logs (Background Process):**
+```
+🤖 Starting background AI release note generation bug_count=25 source=SyncByQuery
+✅ Successfully auto-generated AI release note bug_id=fd108a72-... source=SyncByQuery
+✅ Successfully auto-generated AI release note bug_id=abc123-... source=SyncByQuery
+...
+🎉 Background AI release note generation completed total=25 success=23 skipped=2 failed=0
+```
+
+**Note:** Default limit changed from 100 to 25 for faster demo/testing. Increase limit for production use.
 
 ---
 
@@ -1176,6 +1225,174 @@ Output:
 
 Here's a complete workflow from login to generating release notes:
 
+---
+
+## Workflow Option 1: Auto-Generation (Recommended - New Feature!)
+
+This is the **recommended workflow** that leverages the new auto-generation feature during sync.
+
+### Step 1: Login as Manager
+
+```bash
+curl -X POST http://localhost:8080/api/v1/user/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "manager@arista.com",
+    "role": "manager"
+  }'
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "user": { "id": "...", "email": "manager@arista.com", "role": "manager" }
+  }
+}
+```
+
+Save the token as `MANAGER_TOKEN`.
+
+---
+
+### Step 2: Sync Bugs (AI Release Notes Auto-Generated!)
+
+```bash
+curl -X POST http://localhost:8080/api/v1/bugsby/sync-by-query \
+  -H "Authorization: Bearer $MANAGER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "blocks==wifi.nainital",
+    "limit": 25
+  }'
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "total_fetched": 25,
+    "new_bugs": 25,
+    "updated_bugs": 0,
+    "failed_bugs": 0,
+    "synced_at": "2025-01-15T10:30:00Z",
+    "synced_bug_ids": ["fd108a72-...", "abc123-...", "..."]
+  }
+}
+```
+
+**What Happens:**
+- ✅ Bugs synced to database
+- 🤖 AI generation starts in background (async)
+- ⏱️ Release notes ready within 30-60 seconds
+
+---
+
+### Step 3: Wait a Few Seconds (Optional)
+
+Wait 30-60 seconds for AI generation to complete. You can monitor server logs:
+
+```
+🤖 Starting background AI release note generation bug_count=25 source=SyncByQuery
+✅ Successfully auto-generated AI release note bug_id=fd108a72-...
+✅ Successfully auto-generated AI release note bug_id=abc123-...
+...
+🎉 Background AI release note generation completed total=25 success=25 skipped=0 failed=0
+```
+
+---
+
+### Step 4: Login as Developer
+
+```bash
+curl -X POST http://localhost:8080/api/v1/user/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "developer@arista.com",
+    "role": "developer"
+  }'
+```
+
+Save the token as `DEV_TOKEN`.
+
+---
+
+### Step 5: View AI-Generated Release Notes (Kanban View)
+
+```bash
+curl -X GET "http://localhost:8080/api/v1/release-notes?assigned_to_me=true&status=ai_generated" \
+  -H "Authorization: Bearer $DEV_TOKEN"
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "release_notes": [
+      {
+        "id": "abc123-...",
+        "bug_id": "fd108a72-...",
+        "content": "Resolved issue where the Wireless Manager failed to delete stale packet capture fragments...",
+        "status": "ai_generated",
+        "generated_by": "ai",
+        "ai_model": "gemini-2.5-pro",
+        "ai_confidence": 0.87,
+        "bug": {
+          "bugsby_id": "1184600",
+          "title": "[Systest][SWAT-Wifi] WM is not deleting stale PCAP fragments",
+          "severity": "major"
+        }
+      }
+    ],
+    "total": 25
+  }
+}
+```
+
+**Benefits:**
+- ✅ Release notes already generated and ready!
+- ✅ No need to call `/api/v1/release-notes/generate` for each bug
+- ✅ Faster workflow for developers
+- ✅ Better UX - notes ready on home screen
+
+---
+
+### Step 6: Developer Reviews and Approves
+
+```bash
+curl -X PUT http://localhost:8080/api/v1/release-notes/abc123-... \
+  -H "Authorization: Bearer $DEV_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "Resolved issue where the Wireless Manager failed to delete stale packet capture fragments...",
+    "status": "dev_approved"
+  }'
+```
+
+---
+
+### Step 7: Manager Approves
+
+```bash
+curl -X POST http://localhost:8080/api/v1/release-notes/abc123-.../approve \
+  -H "Authorization: Bearer $MANAGER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action": "approve",
+    "feedback": "Looks good!"
+  }'
+```
+
+---
+
+## Workflow Option 2: Manual Generation (Legacy)
+
+This is the **legacy workflow** for manual generation (still supported).
+
 ### Step 1: Login
 
 ```bash
@@ -1258,7 +1475,7 @@ curl -X GET "http://localhost:8080/api/v1/release-notes/bug/fd108a72-a6d4-4b85-9
 
 ---
 
-### Step 4: Generate Release Note
+### Step 4: Generate Release Note Manually
 
 ```bash
 curl -X POST http://localhost:8080/api/v1/release-notes/generate \
@@ -1418,6 +1635,60 @@ fd108a72-a6d4-4b85-9266-54286309421f
 
 ---
 
-**Last Updated:** 2025-01-15
-**API Version:** 1.0.0
+---
+
+## Summary of Key Changes
+
+### ⚡ New Auto-Generation Feature (v1.1.0)
+
+**What Changed:**
+- All sync endpoints (`/api/v1/bugsby/sync/:bugsby_id`, `/api/v1/bugsby/sync-by-query`) now automatically generate AI release notes in the background
+- Sync operations return immediately (non-blocking)
+- AI generation runs asynchronously using goroutines
+- Release notes are ready within seconds after sync completes
+
+**Benefits:**
+- ✅ **Fewer API calls** - Frontend only needs to call sync endpoint
+- ✅ **Better UX** - Notes ready immediately on home screen
+- ✅ **Faster workflow** - No waiting for manual generation
+- ✅ **Demo-friendly** - Default limit changed from 100 to 25 bugs
+
+**Migration Guide:**
+
+**Old Workflow (v1.0.0):**
+```bash
+# Step 1: Sync bugs
+POST /api/v1/bugsby/sync-by-query
+
+# Step 2: Get pending bugs
+GET /api/v1/release-notes/pending
+
+# Step 3: Generate release note for each bug (slow!)
+POST /api/v1/release-notes/generate (for each bug)
+
+# Step 4: Fetch release notes
+GET /api/v1/release-notes
+```
+
+**New Workflow (v1.1.0):**
+```bash
+# Step 1: Sync bugs (AI generation happens automatically in background!)
+POST /api/v1/bugsby/sync-by-query
+
+# Step 2: Wait a few seconds (optional)
+
+# Step 3: Fetch release notes (already generated!)
+GET /api/v1/release-notes
+```
+
+**Backward Compatibility:**
+- ✅ All existing endpoints still work
+- ✅ Manual generation endpoint (`POST /api/v1/release-notes/generate`) still available
+- ✅ No breaking changes to API contracts
+- ✅ Response format unchanged (added `synced_bug_ids` field to sync responses)
+
+---
+
+**Last Updated:** 2025-11-13
+**API Version:** 1.1.0 (Auto-Generation Feature)
 
