@@ -48,8 +48,12 @@ const BugDetailModal = ({ bug, onClose, onApprovalChange }) => {
         console.log('[BugDetailModal] Release note details:', releaseNoteResponse);
 
         // Update with release note information if available
-        if (releaseNoteResponse && releaseNoteResponse.data) {
-          const releaseNoteData = releaseNoteResponse.data;
+        // Note: getReleaseNoteByBugId returns response.data directly, not wrapped
+        if (releaseNoteResponse) {
+          const releaseNoteData = releaseNoteResponse;
+          console.log('[BugDetailModal] Extracted release note data:', releaseNoteData);
+          console.log('[BugDetailModal] ai_alternative_versions value:', releaseNoteData.ai_alternative_versions);
+          console.log('[BugDetailModal] ai_alternative_versions type:', typeof releaseNoteData.ai_alternative_versions);
 
           // Update AI metadata
           if (releaseNoteData.ai_confidence) {
