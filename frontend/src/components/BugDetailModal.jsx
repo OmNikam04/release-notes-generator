@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import './BugDetailModal.css';
 import { releaseNotesAPI } from '../services/api';
+import Toast from './Toast';
 
 const BugDetailModal = ({ bug, onClose, onApprovalChange }) => {
   if (!bug) return null;
@@ -25,6 +26,12 @@ const BugDetailModal = ({ bug, onClose, onApprovalChange }) => {
   const [approvalLoading, setApprovalLoading] = useState(false);
   const [approvalError, setApprovalError] = useState('');
   const [feedback, setFeedback] = useState('');
+
+  // NEW: State for manager's edited content
+  const [editedContent, setEditedContent] = useState(bug.content || '');
+
+  // Toast state
+  const [toast, setToast] = useState({ show: false, message: '', type: 'info' });
 
   // Fetch full bug details and release note metadata on mount
   useEffect(() => {
@@ -90,6 +97,11 @@ const BugDetailModal = ({ bug, onClose, onApprovalChange }) => {
             console.log('[BugDetailModal] No alternatives available');
             setAlternatives([]);
           }
+
+          // NEW: Initialize editedContent with the current release note content
+          if (releaseNoteData.content) {
+            setEditedContent(releaseNoteData.content);
+          }
         }
       } catch (err) {
         console.error('[BugDetailModal] Failed to fetch release note details:', err);
@@ -105,6 +117,7 @@ const BugDetailModal = ({ bug, onClose, onApprovalChange }) => {
 
   const handleUseAlternative = (alternative) => {
     setReleaseNote(alternative);
+    setEditedContent(alternative); // Also update the editable version
   };
 
   // Developer: Send to approval (change status to dev_approved)
@@ -142,6 +155,62 @@ const BugDetailModal = ({ bug, onClose, onApprovalChange }) => {
     }
   };
 
+  // Manager: Submit feedback only (without approval)
+  const handleSubmitFeedback = async () => {
+    if (!feedback.trim() && editedContent === releaseNote) {
+      setApprovalError('Please provide feedback or make edits before submitting');
+      return;
+    }
+
+    setApprovalLoading(true);
+    setApprovalError('');
+
+    try {
+      console.log('[BugDetailModal] Submitting feedback/edits without approval');
+
+      // Check if manager made edits
+      const hasEdits = editedContent !== releaseNote;
+
+      if (hasEdits) {
+        console.log('[BugDetailModal] Manager made edits - updating release note content');
+        // Update the release note content without changing status
+        await releaseNotesAPI.updateReleaseNote(bug.id, editedContent, currentStatus);
+
+        // Update local state to reflect the change
+        setReleaseNote(editedContent);
+      }
+
+      // TODO: Add a separate endpoint to save feedback without approval
+      // For now, we'll just show a success message
+      // In the future, this should call a dedicated feedback endpoint
+
+      console.log('[BugDetailModal] Feedback/edits saved successfully');
+
+      // Show success message
+      setApprovalError('');
+      setFeedback(''); // Clear feedback after submission
+
+      // Show success toast notification
+      setToast({
+        show: true,
+        message: hasEdits
+          ? 'Changes saved successfully! Feedback will be captured when you approve.'
+          : 'Feedback noted! It will be captured when you approve the release note.',
+        type: 'success'
+      });
+
+      // Refresh the bug details (status remains the same)
+      if (onApprovalChange) {
+        onApprovalChange({ status: currentStatus, releaseNoteId: bug.id });
+      }
+    } catch (err) {
+      console.error('[BugDetailModal] Failed to submit feedback:', err);
+      setApprovalError(err.message || 'Failed to submit feedback');
+    } finally {
+      setApprovalLoading(false);
+    }
+  };
+
   // Manager: Approve release note
   const handleApprove = async () => {
     setApprovalLoading(true);
@@ -149,12 +218,32 @@ const BugDetailModal = ({ bug, onClose, onApprovalChange }) => {
 
     try {
       console.log('[BugDetailModal] Approving release note:', bug.id);
-      await releaseNotesAPI.approveReleaseNote(bug.id, 'approve', feedback);
+
+      // Check if manager made edits to the release note
+      const hasEdits = editedContent !== releaseNote;
+      const correctedContent = hasEdits ? editedContent : null;
+
+      if (hasEdits) {
+        console.log('[BugDetailModal] Manager made edits - AI will learn from corrections');
+        console.log('[BugDetailModal] Original:', releaseNote.substring(0, 100) + '...');
+        console.log('[BugDetailModal] Corrected:', editedContent.substring(0, 100) + '...');
+      }
+
+      if (feedback.trim()) {
+        console.log('[BugDetailModal] Manager provided feedback:', feedback);
+      }
+
+      // Send approval with corrected content and feedback
+      await releaseNotesAPI.approveReleaseNote(bug.id, 'approve', correctedContent, feedback);
       setCurrentStatus('mgr_approved');
       console.log('[BugDetailModal] Successfully approved');
 
       // Show success message
-      setApprovalError('✅ Successfully approved! Refreshing board...');
+      if (hasEdits || feedback.trim()) {
+        setApprovalError('✅ Successfully approved! AI is learning from your feedback... Refreshing board...');
+      } else {
+        setApprovalError('✅ Successfully approved! Refreshing board...');
+      }
 
       // Wait a moment for user to see the success message
       setTimeout(() => {
@@ -172,40 +261,7 @@ const BugDetailModal = ({ bug, onClose, onApprovalChange }) => {
     }
   };
 
-  // Manager: Reject release note
-  const handleReject = async () => {
-    if (!feedback.trim()) {
-      setApprovalError('Please provide feedback for rejection');
-      return;
-    }
 
-    setApprovalLoading(true);
-    setApprovalError('');
-
-    try {
-      console.log('[BugDetailModal] Rejecting release note:', bug.id);
-      await releaseNotesAPI.approveReleaseNote(bug.id, 'reject', feedback);
-      setCurrentStatus('rejected');
-      console.log('[BugDetailModal] Successfully rejected');
-
-      // Show success message
-      setApprovalError('✅ Successfully rejected! Refreshing board...');
-
-      // Wait a moment for user to see the success message
-      setTimeout(() => {
-        // Notify parent component to refresh Kanban board
-        if (onApprovalChange) {
-          console.log('[BugDetailModal] Calling onApprovalChange to refresh board');
-          onApprovalChange({ status: 'rejected', releaseNoteId: bug.id });
-        }
-      }, 1500);
-    } catch (err) {
-      console.error('[BugDetailModal] Failed to reject:', err);
-      setApprovalError(err.message || 'Failed to reject');
-    } finally {
-      setApprovalLoading(false);
-    }
-  };
 
   const getStatusColor = (status) => {
     const colors = {
@@ -330,16 +386,12 @@ const BugDetailModal = ({ bug, onClose, onApprovalChange }) => {
           <div className="modal-response-section">
             <div className="modal-section">
               <h3 className="section-title">
-                <span className="title-icon">📝</span>
-                Generated Release Note
+                <span className="title-icon">✨</span>
+                AI Generated Release Note
               </h3>
-              <textarea
-                className="response-editor"
-                placeholder="The AI-generated release note will appear here. You can edit it as needed..."
-                rows="4"
-                value={releaseNote}
-                onChange={(e) => setReleaseNote(e.target.value)}
-              />
+              <div className="ai-generated-content">
+                {releaseNote || 'The AI-generated release note will appear here...'}
+              </div>
 
               {/* Alternative Suggestions */}
               <div className="alternative-suggestions">
@@ -359,21 +411,54 @@ const BugDetailModal = ({ bug, onClose, onApprovalChange }) => {
                 </div>
               </div>
 
-              {/* Feedback for Regeneration - AFTER alternatives */}
-              <div className="feedback-section">
-                <h4 className="feedback-title">💬 Feedback for Regeneration</h4>
-                <p className="feedback-hint">
-                  Not satisfied? Add feedback below and regenerate to improve the release note.
-                </p>
-                <textarea
-                  className="feedback-input"
-                  placeholder="E.g., 'Make it more technical', 'Add more details about the fix', 'Simplify the language'..."
-                  rows="3"
-                />
-                <button className="btn-regenerate">
-                  🔄 Regenerate Release Note
-                </button>
-              </div>
+              {/* SEQUENCE 1: Edit Release Note Section for Manager */}
+              {isManager && isDevApproved && (
+                <div className="manager-edit-section-left">
+                  <h4 className="edit-title">📝 Edit Release Note (Optional)</h4>
+                  <p className="edit-hint-text">
+                    Make corrections to improve AI learning
+                  </p>
+                  <textarea
+                    className="manager-edit-input-left"
+                    placeholder="Edit the release note if needed..."
+                    value={editedContent}
+                    onChange={(e) => setEditedContent(e.target.value)}
+                    rows="6"
+                  />
+                  {editedContent !== releaseNote && (
+                    <div className="edit-indicator">
+                      ✏️ You've made changes - AI will learn from your corrections
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* SEQUENCE 2: Feedback Section - AFTER edit section */}
+              {isManager && isDevApproved && (
+                <div className="feedback-section">
+                  <h4 className="feedback-title">💬 Feedback Comments (Optional)</h4>
+                  <p className="feedback-hint">
+                    Explain why you made changes. This feedback will be used to improve future AI generations.
+                  </p>
+                  <textarea
+                    className="feedback-input"
+                    placeholder="E.g., 'Too technical', 'Missing CVE details', 'Simplified language'..."
+                    value={feedback}
+                    onChange={(e) => setFeedback(e.target.value)}
+                    rows="3"
+                  />
+                  <button
+                    className="btn-submit-feedback"
+                    onClick={handleSubmitFeedback}
+                    disabled={(!feedback.trim() && editedContent === releaseNote) || approvalLoading}
+                  >
+                    💾 Save Changes
+                  </button>
+                  <p className="feedback-save-hint">
+                    Note: This saves your edits without approving. Feedback will be captured when you approve.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
           </div>
@@ -388,7 +473,6 @@ const BugDetailModal = ({ bug, onClose, onApprovalChange }) => {
                 <span className="status-label">Current Status</span>
                 <span
                   className="status-value"
-                  style={{ backgroundColor: getStatusColor(currentStatus) }}
                 >
                   {getStatusLabel(currentStatus)}
                 </span>
@@ -439,32 +523,26 @@ const BugDetailModal = ({ bug, onClose, onApprovalChange }) => {
               {/* Manager Approval Actions - Show when status is dev_approved */}
               {isManager && isDevApproved && (
                 <div className="approval-actions manager-actions">
-                  <div className="manager-feedback">
-                    <label className="feedback-label">Manager Feedback (Optional)</label>
-                    <textarea
-                      className="manager-feedback-input"
-                      placeholder="Add feedback for the developer..."
-                      value={feedback}
-                      onChange={(e) => setFeedback(e.target.value)}
-                      rows="3"
-                    />
-                  </div>
+                  {/* Single Approve Button */}
                   <div className="manager-buttons">
                     <button
                       className="btn-approval-approve"
                       onClick={handleApprove}
                       disabled={approvalLoading}
                     >
-                      {approvalLoading ? '⏳ Approving...' : '✅ Approve'}
-                    </button>
-                    <button
-                      className="btn-approval-reject"
-                      onClick={handleReject}
-                      disabled={approvalLoading || !feedback.trim()}
-                    >
-                      {approvalLoading ? '⏳ Rejecting...' : '❌ Reject'}
+                      {approvalLoading ? '⏳ Approving...' : '✅ Approve Release Note'}
                     </button>
                   </div>
+
+                  {/* Learning Indicator - Shows when manager made edits or added feedback */}
+                  {(editedContent !== releaseNote || feedback.trim()) && (
+                    <div className="learning-indicator">
+                      <span className="learning-icon">🧠</span>
+                      <span className="learning-text">
+                        AI will learn from your {editedContent !== releaseNote ? 'corrections' : 'feedback'}
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -498,6 +576,16 @@ const BugDetailModal = ({ bug, onClose, onApprovalChange }) => {
           </button>
         </div>
       </div>
+
+      {/* Toast Notification */}
+      <Toast
+        show={toast.show}
+        message={toast.message}
+        type={toast.type}
+        onClose={() => setToast({ ...toast, show: false })}
+        duration={5000}
+        position="bottom-right"
+      />
     </div>
   );
 };

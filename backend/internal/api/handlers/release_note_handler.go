@@ -471,7 +471,7 @@ func (h *ReleaseNoteHandler) ApproveReleaseNote(c *fiber.Ctx) error {
 
 	// Approve or reject
 	if req.Action == "approve" {
-		err = h.releaseNoteService.ApproveReleaseNote(c.Context(), id, userID, req.Feedback)
+		err = h.releaseNoteService.ApproveReleaseNote(c.Context(), id, userID, req.CorrectedContent, req.Feedback)
 	} else {
 		feedbackStr := ""
 		if req.Feedback != nil {

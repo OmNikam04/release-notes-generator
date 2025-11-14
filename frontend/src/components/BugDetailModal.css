@@ -473,6 +473,95 @@
   background-color: #0f0f0f;
 }
 
+/* Submit Feedback Button */
+.btn-submit-feedback {
+  width: 100%;
+  padding: 0.875rem 1.25rem;
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
+}
+
+.btn-submit-feedback:hover:not(:disabled) {
+  background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+}
+
+.btn-submit-feedback:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-submit-feedback:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+}
+
+.feedback-save-hint {
+  font-size: 0.75rem;
+  color: #737373;
+  margin: 0.5rem 0 0 0;
+  line-height: 1.4;
+  font-style: italic;
+}
+
+/* NEW: Manager Edit Section on LEFT side */
+.manager-edit-section-left {
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid #2a2a2a;
+}
+
+.edit-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #e5e5e5;
+  margin: 0 0 0.5rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.edit-hint-text {
+  font-size: 0.8rem;
+  color: #737373;
+  margin: 0 0 0.75rem 0;
+  line-height: 1.4;
+}
+
+.manager-edit-input-left {
+  width: 100%;
+  padding: 0.75rem;
+  background: #0f0f0f;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  color: #e0e0e0;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  resize: vertical;
+  min-height: 150px;
+  transition: border-color 0.2s ease;
+  margin-bottom: 0.75rem;
+}
+
+.manager-edit-input-left:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
 .btn-regenerate {
   padding: 0.625rem 1.25rem;
   background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
@@ -608,7 +697,43 @@
   font-weight: 600;
 }
 
-/* Response Editor */
+/* AI Generated Content Display - MAIN FEATURE */
+.ai-generated-content {
+  width: 100%;
+  padding: 1.25rem;
+  border: 2px solid #3b82f6;
+  border-radius: 8px;
+  font-size: 1.05rem;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+  line-height: 1.7;
+  background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+  color: #e0e7ff;
+  min-height: 100px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  position: relative;
+  overflow: hidden;
+}
+
+.ai-generated-content::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #60a5fa, #3b82f6, #2563eb);
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  0% { opacity: 0.5; }
+  50% { opacity: 1; }
+  100% { opacity: 0.5; }
+}
+
+/* Response Editor (kept for backward compatibility) */
 .response-editor {
   width: 100%;
   padding: 0.875rem;
@@ -630,6 +755,14 @@
   border-color: #f97316;
   box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.15);
   background-color: #0f0f0f;
+}
+
+.response-editor:disabled {
+  background-color: #0f0f0f;
+  color: #9ca3af;
+  cursor: not-allowed;
+  opacity: 0.7;
+  border-color: #2a2a2a;
 }
 
 .modal-footer {
@@ -844,9 +977,75 @@
 .manager-actions {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 1.5rem;
 }
 
+/* NEW: Manager Edit Section */
+.manager-edit-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.edit-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-weight: 600;
+  color: #e0e0e0;
+  font-size: 0.9rem;
+}
+
+.edit-hint {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: #9ca3af;
+}
+
+.manager-edit-input {
+  width: 100%;
+  padding: 0.75rem;
+  background: #0f0f0f;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  color: #e0e0e0;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  resize: vertical;
+  min-height: 150px;
+  transition: border-color 0.2s ease;
+}
+
+.manager-edit-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.edit-indicator {
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: rgba(59, 130, 246, 0.1);
+  border-left: 3px solid #3b82f6;
+  border-radius: 4px;
+  color: #60a5fa;
+  font-size: 0.85rem;
+  animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* UPDATED: Manager Feedback Section */
 .manager-feedback {
   display: flex;
   flex-direction: column;
@@ -854,9 +1053,18 @@
 }
 
 .feedback-label {
-  font-size: 0.85rem;
-  color: #a3a3a3;
-  font-weight: 500;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.9rem;
+  color: #e0e0e0;
+  font-weight: 600;
+}
+
+.feedback-hint {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: #9ca3af;
 }
 
 .manager-feedback-input {
@@ -882,19 +1090,15 @@
   gap: 0.75rem;
 }
 
-.btn-approval-approve,
-.btn-approval-reject {
-  flex: 1;
-  padding: 0.75rem 1rem;
+.btn-approval-approve {
+  width: 100%;
+  padding: 0.875rem 1.5rem;
   border: none;
   border-radius: 8px;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
-}
-
-.btn-approval-approve {
   background: linear-gradient(135deg, #22c55e, #16a34a);
   color: white;
 }
@@ -909,19 +1113,36 @@
   cursor: not-allowed;
 }
 
-.btn-approval-reject {
-  background: linear-gradient(135deg, #ef4444, #dc2626);
-  color: white;
+/* NEW: Learning Indicator */
+.learning-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: rgba(16, 185, 129, 0.1);
+  border-left: 3px solid #10b981;
+  border-radius: 4px;
+  animation: slideIn 0.3s ease;
 }
 
-.btn-approval-reject:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+.learning-icon {
+  font-size: 1.25rem;
+  animation: pulse 2s ease-in-out infinite;
 }
 
-.btn-approval-reject:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+.learning-text {
+  color: #34d399;
+  font-size: 0.875rem;
+  font-weight: 500;
 }
 
 .reasoning-text {

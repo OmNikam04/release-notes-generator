@@ -56,8 +56,9 @@ type BulkGenerateRequest struct {
 
 // ApproveReleaseNoteRequest represents a request to approve/reject a release note
 type ApproveReleaseNoteRequest struct {
-	Action   string  `json:"action" validate:"required,oneof=approve reject"`
-	Feedback *string `json:"feedback,omitempty"`
+	Action           string  `json:"action" validate:"required,oneof=approve reject"`
+	CorrectedContent *string `json:"corrected_content,omitempty"` // Manager's edited version
+	Feedback         *string `json:"feedback,omitempty"`          // Manager's feedback/comments
 }
 
 // ===== Response DTOs =====

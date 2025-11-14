@@ -375,14 +375,31 @@ export const releaseNotesAPI = {
   },
 
   // Approve or reject release note (manager only)
-  approveReleaseNote: async (releaseNoteId, action, feedback = '') => {
+  approveReleaseNote: async (releaseNoteId, action, correctedContent = null, feedback = '') => {
     console.log('[API] Approving/rejecting release note:', releaseNoteId, 'action:', action);
+    if (correctedContent) {
+      console.log('[API] Manager provided corrected content');
+    }
+    if (feedback) {
+      console.log('[API] Manager provided feedback:', feedback);
+    }
 
     try {
-      const response = await apiCall(`/release-notes/${releaseNoteId}/approve`, 'POST', {
+      const body = {
         action,
-        feedback: feedback || undefined
-      });
+      };
+
+      // Only include corrected_content if it's provided and different from original
+      if (correctedContent) {
+        body.corrected_content = correctedContent;
+      }
+
+      // Only include feedback if it's provided
+      if (feedback) {
+        body.feedback = feedback;
+      }
+
+      const response = await apiCall(`/release-notes/${releaseNoteId}/approve`, 'POST', body);
       console.log('[API] Release note approval processed:', response.data);
       return response.data;
     } catch (error) {

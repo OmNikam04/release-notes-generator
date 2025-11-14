@@ -14,6 +14,7 @@ import (
 // AIService handles AI-powered release note generation
 type AIService interface {
 	GenerateReleaseNote(ctx context.Context, bug *models.Bug, commits []*bugsby.ParsedCommitInfo) (*AIReleaseNoteResponse, error)
+	GenerateReleaseNoteWithPatterns(ctx context.Context, bug *models.Bug, commits []*bugsby.ParsedCommitInfo, patternSvc PatternService) (*AIReleaseNoteResponse, error)
 	Close() error
 }
 
@@ -98,6 +99,67 @@ func (s *aiService) GenerateReleaseNote(
 		Str("reasoning", aiResponse.Reasoning).
 		Int("alternatives", len(aiResponse.AlternativeVersions)).
 		Msg("Successfully generated release note with AI")
+
+	return aiResponse, nil
+}
+
+// GenerateReleaseNoteWithPatterns generates a release note using AI with pattern-aware few-shot learning
+func (s *aiService) GenerateReleaseNoteWithPatterns(
+	ctx context.Context,
+	bug *models.Bug,
+	commits []*bugsby.ParsedCommitInfo,
+	patternSvc PatternService,
+) (*AIReleaseNoteResponse, error) {
+	// Get best examples for this bug
+	examples, err := patternSvc.GetBestExamplesForBug(ctx, bug, 3)
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to get pattern examples, falling back to standard generation")
+		return s.GenerateReleaseNote(ctx, bug, commits)
+	}
+
+	// If no examples found, use standard generation
+	if len(examples) == 0 {
+		log.Info().Msg("No pattern examples found, using standard generation")
+		return s.GenerateReleaseNote(ctx, bug, commits)
+	}
+
+	// Build enhanced prompt with few-shot examples
+	var prompt string
+	if len(commits) > 0 {
+		prompt = BuildReleaseNotePromptWithPatterns(bug, commits, examples)
+		log.Info().
+			Str("bug_id", bug.BugsbyID).
+			Int("commit_count", len(commits)).
+			Int("example_count", len(examples)).
+			Msg("Generating release note with commit information and pattern examples")
+	} else {
+		prompt = BuildReleaseNotePromptWithPatternsNoCommits(bug, examples)
+		log.Info().
+			Str("bug_id", bug.BugsbyID).
+			Int("example_count", len(examples)).
+			Msg("Generating release note without commits but with pattern examples")
+	}
+
+	// Call Gemini AI
+	responseText, err := s.geminiClient.GenerateContent(ctx, prompt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate release note: %w", err)
+	}
+
+	// Parse response
+	aiResponse, err := parseAIResponse(responseText)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse AI response: %w", err)
+	}
+
+	// Adjust confidence based on context quality
+	aiResponse.Confidence = adjustConfidence(aiResponse.Confidence, bug, commits, aiResponse.ReleaseNote)
+
+	log.Info().
+		Str("bug_id", bug.BugsbyID).
+		Float64("confidence", aiResponse.Confidence).
+		Int("examples_used", len(examples)).
+		Msg("Release note generated successfully with patterns")
 
 	return aiResponse, nil
 }

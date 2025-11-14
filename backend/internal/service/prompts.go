@@ -211,3 +211,106 @@ func ExtractReleaseNoteFromResponse(response string) string {
 	}
 	return parsed.ReleaseNote
 }
+
+// BuildReleaseNotePromptWithPatterns constructs an enhanced prompt with few-shot learning from patterns
+func BuildReleaseNotePromptWithPatterns(bug *models.Bug, commits []*bugsby.ParsedCommitInfo, examples []*models.Feedback) string {
+	var builder strings.Builder
+
+	// Start with base prompt
+	basePrompt := BuildReleaseNotePrompt(bug, commits)
+	builder.WriteString(basePrompt)
+
+	// Add learned patterns section
+	builder.WriteString("\n\n=== LEARNED PATTERNS - Apply these corrections ===\n\n")
+	builder.WriteString("Based on previous manager feedback, apply these patterns to improve quality:\n\n")
+
+	for i, example := range examples {
+		builder.WriteString(fmt.Sprintf("EXAMPLE %d:\n", i+1))
+		builder.WriteString(fmt.Sprintf("BEFORE (AI-generated): %s\n", example.OriginalContent))
+		builder.WriteString(fmt.Sprintf("AFTER (Manager-corrected): %s\n", example.CorrectedContent))
+
+		if example.FeedbackText != nil && *example.FeedbackText != "" {
+			builder.WriteString(fmt.Sprintf("FEEDBACK: %s\n", *example.FeedbackText))
+		}
+
+		// Add extracted patterns if available
+		if len(example.ExtractedPatterns) > 0 {
+			var patterns PatternExtractionResponse
+			if err := json.Unmarshal(example.ExtractedPatterns, &patterns); err == nil {
+				builder.WriteString("PATTERNS IDENTIFIED:\n")
+				for _, pattern := range patterns.Patterns {
+					builder.WriteString(fmt.Sprintf("  - %s (%s): %s\n",
+						pattern.PatternName, pattern.Category, pattern.Description))
+				}
+			}
+		}
+
+		builder.WriteString("\n")
+	}
+
+	builder.WriteString("Apply the lessons from these examples to generate a better release note.\n")
+	builder.WriteString("Avoid the mistakes shown in the BEFORE examples.\n")
+	builder.WriteString("Follow the style and approach shown in the AFTER examples.\n\n")
+
+	return builder.String()
+}
+
+// BuildReleaseNotePromptWithPatternsNoCommits constructs an enhanced prompt without commits but with patterns
+func BuildReleaseNotePromptWithPatternsNoCommits(bug *models.Bug, examples []*models.Feedback) string {
+	var builder strings.Builder
+
+	// Start with base simple prompt
+	basePrompt := BuildReleaseNotePromptSimple(bug)
+	builder.WriteString(basePrompt)
+
+	// Add learned patterns section (same as above)
+	builder.WriteString("\n\n=== LEARNED PATTERNS - Apply these corrections ===\n\n")
+	builder.WriteString("Based on previous manager feedback, apply these patterns to improve quality:\n\n")
+
+	for i, example := range examples {
+		builder.WriteString(fmt.Sprintf("EXAMPLE %d:\n", i+1))
+		builder.WriteString(fmt.Sprintf("BEFORE (AI-generated): %s\n", example.OriginalContent))
+		builder.WriteString(fmt.Sprintf("AFTER (Manager-corrected): %s\n", example.CorrectedContent))
+
+		if example.FeedbackText != nil && *example.FeedbackText != "" {
+			builder.WriteString(fmt.Sprintf("FEEDBACK: %s\n", *example.FeedbackText))
+		}
+
+		// Add extracted patterns if available
+		if len(example.ExtractedPatterns) > 0 {
+			var patterns PatternExtractionResponse
+			if err := json.Unmarshal(example.ExtractedPatterns, &patterns); err == nil {
+				builder.WriteString("PATTERNS IDENTIFIED:\n")
+				for _, pattern := range patterns.Patterns {
+					builder.WriteString(fmt.Sprintf("  - %s (%s): %s\n",
+						pattern.PatternName, pattern.Category, pattern.Description))
+				}
+			}
+		}
+
+		builder.WriteString("\n")
+	}
+
+	builder.WriteString("Apply the lessons from these examples to generate a better release note.\n")
+	builder.WriteString("Avoid the mistakes shown in the BEFORE examples.\n")
+	builder.WriteString("Follow the style and approach shown in the AFTER examples.\n\n")
+
+	return builder.String()
+}
+
+// parseAIResponse parses the AI's JSON response
+func parseAIResponse(responseText string) (*AIReleaseNoteResponse, error) {
+	// Clean up response - remove markdown code blocks if present
+	cleaned := strings.TrimSpace(responseText)
+	cleaned = strings.TrimPrefix(cleaned, "```json")
+	cleaned = strings.TrimPrefix(cleaned, "```")
+	cleaned = strings.TrimSuffix(cleaned, "```")
+	cleaned = strings.TrimSpace(cleaned)
+
+	var response AIReleaseNoteResponse
+	if err := json.Unmarshal([]byte(cleaned), &response); err != nil {
+		return nil, fmt.Errorf("failed to parse JSON response: %w", err)
+	}
+
+	return &response, nil
+}

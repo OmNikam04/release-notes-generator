@@ -98,11 +98,40 @@ func main() {
 	refreshRepo := repository.NewRefreshTokenRepository(database)
 	bugRepo := repository.NewBugRepository(database)
 	releaseNoteRepo := repository.NewReleaseNoteRepository(database)
+	feedbackRepo := repository.NewFeedbackRepository(database)
+	patternRepo := repository.NewPatternRepository(database)
+	feedbackPatternRepo := repository.NewFeedbackPatternRepository(database)
 
 	// Initialize services
 	userService := service.NewUserService(userRepo, refreshRepo)
 	bugsbySyncService := service.NewBugsbySyncService(bugsbyClient, bugRepo, userRepo)
-	releaseNoteService := service.NewReleaseNoteService(releaseNoteRepo, bugRepo, bugsbyClient, aiService, database)
+
+	// Initialize feedback and pattern services
+	var feedbackService service.FeedbackService
+	var patternService service.PatternService
+
+	if aiService != nil && cfg.GCPProjectID != "" && cfg.GCPLocation != "" {
+		// Create a separate Gemini client for pattern service
+		ctx := context.Background()
+		geminiClient, err := gemini.NewClient(ctx, &gemini.Config{
+			ProjectID: cfg.GCPProjectID,
+			Location:  cfg.GCPLocation,
+			Model:     cfg.GeminiModel,
+		})
+		if err != nil {
+			appLogger.Warn().Err(err).Msg("⚠️  Failed to create Gemini client for pattern service")
+		} else {
+			// Pattern service needs Gemini client for pattern extraction
+			patternService = service.NewPatternService(patternRepo, feedbackRepo, feedbackPatternRepo, geminiClient)
+			feedbackService = service.NewFeedbackService(feedbackRepo, bugRepo, patternService)
+			appLogger.Info().Msg("✅ Feedback and pattern services initialized")
+		}
+	} else {
+		// If no AI service, create nil services (won't capture feedback)
+		appLogger.Warn().Msg("⚠️  Feedback and pattern services disabled (no AI service)")
+	}
+
+	releaseNoteService := service.NewReleaseNoteService(releaseNoteRepo, bugRepo, bugsbyClient, aiService, feedbackService, database)
 
 	// Initialize handlers (pass config for JWT)
 	userHandler := handlers.NewUserHandler(userService, cfg)

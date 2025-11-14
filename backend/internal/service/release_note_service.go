@@ -39,7 +39,7 @@ type ReleaseNoteService interface {
 	GetReleaseNoteByBugID(ctx context.Context, bugID uuid.UUID) (*models.ReleaseNote, error)
 
 	// Approve/Reject release note (manager)
-	ApproveReleaseNote(ctx context.Context, id uuid.UUID, managerID uuid.UUID, feedback *string) error
+	ApproveReleaseNote(ctx context.Context, id uuid.UUID, managerID uuid.UUID, correctedContent *string, feedback *string) error
 	RejectReleaseNote(ctx context.Context, id uuid.UUID, managerID uuid.UUID, feedback string) error
 }
 
@@ -105,6 +105,7 @@ type releaseNoteService struct {
 	bugRepo         repository.BugRepository
 	bugsbyClient    bugsby.Client
 	aiService       AIService
+	feedbackService FeedbackService
 	db              *gorm.DB
 }
 
@@ -114,6 +115,7 @@ func NewReleaseNoteService(
 	bugRepo repository.BugRepository,
 	bugsbyClient bugsby.Client,
 	aiService AIService,
+	feedbackService FeedbackService,
 	db *gorm.DB,
 ) ReleaseNoteService {
 	return &releaseNoteService{
@@ -121,6 +123,7 @@ func NewReleaseNoteService(
 		bugRepo:         bugRepo,
 		bugsbyClient:    bugsbyClient,
 		aiService:       aiService,
+		feedbackService: feedbackService,
 		db:              db,
 	}
 }
@@ -509,13 +512,25 @@ func (s *releaseNoteService) ApproveReleaseNote(
 	ctx context.Context,
 	id uuid.UUID,
 	managerID uuid.UUID,
+	correctedContent *string,
 	feedback *string,
 ) error {
-	// Get release note
+	// Get release note with bug
 	note, err := s.releaseNoteRepo.FindByID(id)
 	if err != nil {
 		logger.Error().Err(err).Str("note_id", id.String()).Msg("Release note not found")
 		return fmt.Errorf("release note not found: %w", err)
+	}
+
+	// Store original content for feedback capture
+	originalContent := note.Content
+
+	// If manager provided corrected content, update the release note
+	if correctedContent != nil && *correctedContent != "" {
+		note.Content = *correctedContent
+		logger.Info().
+			Str("note_id", id.String()).
+			Msg("Manager provided corrected content")
 	}
 
 	// Update status
@@ -535,6 +550,36 @@ func (s *releaseNoteService) ApproveReleaseNote(
 		note.Bug.Status = "mgr_approved"
 		if err := s.bugRepo.Update(note.Bug); err != nil {
 			logger.Error().Err(err).Msg("Failed to update bug status")
+		}
+	}
+
+	// Capture feedback if manager made changes or provided feedback
+	if s.feedbackService != nil && (correctedContent != nil || feedback != nil) {
+		// Only capture if there's actual content to learn from
+		if correctedContent != nil && *correctedContent != originalContent {
+			feedbackReq := &CaptureFeedbackRequest{
+				ReleaseNoteID:    id,
+				BugID:            note.BugID,
+				ManagerID:        managerID,
+				OriginalContent:  originalContent,
+				CorrectedContent: *correctedContent,
+				FeedbackText:     feedback,
+				Action:           "approve",
+			}
+
+			// Capture feedback asynchronously
+			go func() {
+				if _, err := s.feedbackService.CaptureFeedback(context.Background(), feedbackReq); err != nil {
+					logger.Error().
+						Err(err).
+						Str("note_id", id.String()).
+						Msg("Failed to capture feedback")
+				} else {
+					logger.Info().
+						Str("note_id", id.String()).
+						Msg("Feedback captured successfully")
+				}
+			}()
 		}
 	}
 
