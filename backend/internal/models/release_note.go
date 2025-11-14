@@ -22,25 +22,27 @@ type ReleaseNote struct {
 	Version int    `json:"version" gorm:"default:1"`          // Version number (for tracking edits)
 
 	// Generation Info
-	GeneratedBy  string   `json:"generated_by" gorm:"type:varchar(20);not null"` // "ai" or "manual"
-	AIModel      *string  `json:"ai_model" gorm:"type:varchar(50)"`              // AI model used (e.g., "gpt-4"), nullable
-	AIConfidence *float64 `json:"ai_confidence" gorm:"type:decimal(3,2)"`        // AI confidence score (0.0-1.0), nullable
+	GeneratedBy           string   `json:"generated_by" gorm:"type:varchar(20);not null"` // "ai" or "manual"
+	AIModel               *string  `json:"ai_model" gorm:"type:varchar(50)"`              // AI model used (e.g., "gemini-2.5-pro"), nullable
+	AIConfidence          *float64 `json:"ai_confidence" gorm:"type:decimal(3,2)"`        // AI confidence score (0.0-1.0), nullable
+	AIReasoning           *string  `json:"ai_reasoning" gorm:"type:text"`                 // AI's explanation for confidence score, nullable
+	AIAlternativeVersions *string  `json:"ai_alternative_versions" gorm:"type:text"`      // Alternative phrasings as JSON array, nullable
 
 	// Approval Tracking
 	Status string `json:"status" gorm:"type:varchar(50);not null;index;default:'draft'"` // "draft", "ai_generated", "dev_approved", "mgr_approved", "rejected"
 
 	// User Actions
-	CreatedByID     *uuid.UUID `json:"created_by_id" gorm:"type:uuid;index"`     // User who created (NULL for AI), foreign key
-	ApprovedByDevID *uuid.UUID `json:"approved_by_dev_id" gorm:"type:uuid"`      // Developer who approved, foreign key, nullable
-	ApprovedByMgrID *uuid.UUID `json:"approved_by_mgr_id" gorm:"type:uuid"`      // Manager who approved, foreign key, nullable
+	CreatedByID     *uuid.UUID `json:"created_by_id" gorm:"type:uuid;index"` // User who created (NULL for AI), foreign key
+	ApprovedByDevID *uuid.UUID `json:"approved_by_dev_id" gorm:"type:uuid"`  // Developer who approved, foreign key, nullable
+	ApprovedByMgrID *uuid.UUID `json:"approved_by_mgr_id" gorm:"type:uuid"`  // Manager who approved, foreign key, nullable
 
 	// Timestamps
 	DevApprovedAt *time.Time `json:"dev_approved_at"` // When developer approved, nullable
 	MgrApprovedAt *time.Time `json:"mgr_approved_at"` // When manager approved, nullable
 
 	// Relationships
-	Bug       *Bug        `json:"bug,omitempty" gorm:"foreignKey:BugID;constraint:OnDelete:CASCADE"`
-	Feedbacks []Feedback  `json:"feedbacks,omitempty" gorm:"foreignKey:ReleaseNoteID;constraint:OnDelete:CASCADE"`
+	Bug       *Bug       `json:"bug,omitempty" gorm:"foreignKey:BugID;constraint:OnDelete:CASCADE"`
+	Feedbacks []Feedback `json:"feedbacks,omitempty" gorm:"foreignKey:ReleaseNoteID;constraint:OnDelete:CASCADE"`
 }
 
 // BeforeCreate hook to generate UUID
@@ -55,4 +57,3 @@ func (rn *ReleaseNote) BeforeCreate(tx *gorm.DB) error {
 func (ReleaseNote) TableName() string {
 	return "release_notes"
 }
-

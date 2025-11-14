@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -273,6 +274,8 @@ func (s *releaseNoteService) GenerateReleaseNote(
 	var generatedBy string
 	var aiModel *string
 	var aiConfidence *float64
+	var aiReasoning *string
+	var aiAlternativeVersions *string
 	var status string
 
 	if manualContent != nil && *manualContent != "" {
@@ -290,19 +293,31 @@ func (s *releaseNoteService) GenerateReleaseNote(
 			}
 
 			// Generate with AI
-			aiContent, confidence, aiErr := s.aiService.GenerateReleaseNote(ctx, bug, bugContext.Comments)
-			if aiErr == nil && aiContent != "" {
+			aiResponse, aiErr := s.aiService.GenerateReleaseNote(ctx, bug, bugContext.Comments)
+			if aiErr == nil && aiResponse != nil && aiResponse.ReleaseNote != "" {
 				// AI generation successful
-				content = aiContent
+				content = aiResponse.ReleaseNote
 				generatedBy = "ai"
 				status = "ai_generated"
 				modelName := "gemini-2.5-pro" // Get from config
 				aiModel = &modelName
-				aiConfidence = &confidence
+				aiConfidence = &aiResponse.Confidence
+				aiReasoning = &aiResponse.Reasoning
+
+				// Convert alternative versions to JSON string
+				if len(aiResponse.AlternativeVersions) > 0 {
+					alternativesJSON, err := json.Marshal(aiResponse.AlternativeVersions)
+					if err == nil {
+						alternativesStr := string(alternativesJSON)
+						aiAlternativeVersions = &alternativesStr
+					}
+				}
 
 				logger.Info().
 					Str("bug_id", bugID.String()).
-					Float64("confidence", confidence).
+					Float64("confidence", aiResponse.Confidence).
+					Str("reasoning", aiResponse.Reasoning).
+					Int("alternatives", len(aiResponse.AlternativeVersions)).
 					Msg("Successfully generated release note with AI")
 			} else {
 				// AI generation failed, fallback to placeholder
@@ -325,15 +340,17 @@ func (s *releaseNoteService) GenerateReleaseNote(
 
 	// Create release note
 	note := &models.ReleaseNote{
-		ID:           uuid.New(),
-		BugID:        bugID,
-		Content:      content,
-		Version:      1,
-		GeneratedBy:  generatedBy,
-		AIModel:      aiModel,
-		AIConfidence: aiConfidence,
-		Status:       status,
-		CreatedByID:  &userID,
+		ID:                    uuid.New(),
+		BugID:                 bugID,
+		Content:               content,
+		Version:               1,
+		GeneratedBy:           generatedBy,
+		AIModel:               aiModel,
+		AIConfidence:          aiConfidence,
+		AIReasoning:           aiReasoning,
+		AIAlternativeVersions: aiAlternativeVersions,
+		Status:                status,
+		CreatedByID:           &userID,
 	}
 
 	// Save to database

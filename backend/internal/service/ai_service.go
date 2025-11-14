@@ -13,7 +13,7 @@ import (
 
 // AIService handles AI-powered release note generation
 type AIService interface {
-	GenerateReleaseNote(ctx context.Context, bug *models.Bug, commits []*bugsby.ParsedCommitInfo) (content string, confidence float64, err error)
+	GenerateReleaseNote(ctx context.Context, bug *models.Bug, commits []*bugsby.ParsedCommitInfo) (*AIReleaseNoteResponse, error)
 	Close() error
 }
 
@@ -49,7 +49,7 @@ func (s *aiService) GenerateReleaseNote(
 	ctx context.Context,
 	bug *models.Bug,
 	commits []*bugsby.ParsedCommitInfo,
-) (string, float64, error) {
+) (*AIReleaseNoteResponse, error) {
 	// Build prompt based on available information
 	var prompt string
 	if len(commits) > 0 {
@@ -72,7 +72,7 @@ func (s *aiService) GenerateReleaseNote(
 			Err(err).
 			Str("bug_id", bug.BugsbyID).
 			Msg("Failed to generate release note with AI")
-		return "", 0.0, fmt.Errorf("AI generation failed: %w", err)
+		return nil, fmt.Errorf("AI generation failed: %w", err)
 	}
 
 	// Parse the JSON response from AI
@@ -82,28 +82,24 @@ func (s *aiService) GenerateReleaseNote(
 			Err(err).
 			Str("bug_id", bug.BugsbyID).
 			Msg("Failed to parse AI response")
-		return "", 0.0, fmt.Errorf("failed to parse AI response: %w", err)
+		return nil, fmt.Errorf("failed to parse AI response: %w", err)
 	}
 
 	if aiResponse.ReleaseNote == "" {
-		return "", 0.0, fmt.Errorf("AI returned empty release note")
+		return nil, fmt.Errorf("AI returned empty release note")
 	}
 
-	// Use AI's confidence score, but apply our own adjustments
-	confidence := aiResponse.Confidence
-
 	// Apply additional confidence adjustments based on context quality
-	confidence = adjustConfidence(confidence, bug, commits, aiResponse.ReleaseNote)
+	aiResponse.Confidence = adjustConfidence(aiResponse.Confidence, bug, commits, aiResponse.ReleaseNote)
 
 	log.Info().
 		Str("bug_id", bug.BugsbyID).
-		Float64("ai_confidence", aiResponse.Confidence).
-		Float64("adjusted_confidence", confidence).
+		Float64("confidence", aiResponse.Confidence).
 		Str("reasoning", aiResponse.Reasoning).
 		Int("alternatives", len(aiResponse.AlternativeVersions)).
 		Msg("Successfully generated release note with AI")
 
-	return aiResponse.ReleaseNote, confidence, nil
+	return aiResponse, nil
 }
 
 // adjustConfidence adjusts the AI's confidence score based on context quality

@@ -74,7 +74,7 @@ func (c *Client) GenerateContent(ctx context.Context, prompt string) (string, er
 	// Configure generation parameters
 	config := &genai.GenerateContentConfig{
 		Temperature:     genai.Ptr(float32(0.7)), // Balanced creativity
-		MaxOutputTokens: 1000,                    // Limit output length
+		MaxOutputTokens: 4096,                    // Increased to allow complete JSON response with all fields
 		TopP:            genai.Ptr(float32(0.95)),
 		TopK:            genai.Ptr(float32(40)),
 	}
