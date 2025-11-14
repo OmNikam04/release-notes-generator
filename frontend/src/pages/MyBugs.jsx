@@ -314,7 +314,7 @@ const MyBugs = () => {
             disabled={logoutLoading}
             title="Logout"
           >
-            {logoutLoading ? '⏳' : '⚡'}
+            {logoutLoading ? '⏳' : '✕'}
           </button>
         </div>
       </div>
