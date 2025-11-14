@@ -42,17 +42,26 @@ const MyBugs = () => {
       setColumnLoading({ ai_generated: true, dev_approved: true, mgr_approved: true });
 
       try {
-        console.log('[MyBugs] Fetching Kanban columns from backend API for user:', user?.email);
+        console.log('[MyBugs] Fetching Kanban columns from backend API for user:', user?.email, 'role:', user?.role);
         console.log('[MyBugs] Column 1 (AI Generated) - Loading...');
         console.log('[MyBugs] Column 2 (Dev Approved) - Loading...');
         console.log('[MyBugs] Column 3 (Manager Approved) - Loading...');
 
+        // Determine filter based on user role
+        // Developer: See bugs assigned to me
+        // Manager: See bugs where I'm the manager (my team's bugs)
+        const isManager = user?.role === 'manager';
+        const filterParams = isManager
+          ? { manager_id: true }      // Manager sees team's bugs
+          : { assigned_to_me: true }; // Developer sees own bugs
+
+        console.log('[MyBugs] Using filter:', isManager ? 'manager_id=true (team bugs)' : 'assigned_to_me=true (my bugs)');
+
         // Fetch each Kanban column separately based on status
-        // Only fetch bugs assigned to current user
         const [pendingResponse, devApprovedResponse, mgrApprovedResponse] = await Promise.all([
-          bugsAPI.getReleaseNotes({ status: 'ai_generated', assigned_to_me: true }),
-          bugsAPI.getReleaseNotes({ status: 'dev_approved', assigned_to_me: true }),
-          bugsAPI.getReleaseNotes({ status: 'mgr_approved', assigned_to_me: true })
+          bugsAPI.getReleaseNotes({ status: 'ai_generated', ...filterParams }),
+          bugsAPI.getReleaseNotes({ status: 'dev_approved', ...filterParams }),
+          bugsAPI.getReleaseNotes({ status: 'mgr_approved', ...filterParams })
         ]);
 
         console.log('[MyBugs] Column 1 (AI Generated) - Loaded:', pendingResponse.release_notes.length, 'bugs');
@@ -203,11 +212,17 @@ const MyBugs = () => {
     setColumnLoading({ ai_generated: true, dev_approved: true, mgr_approved: true });
 
     try {
+      // Determine filter based on user role
+      const isManager = user?.role === 'manager';
+      const filterParams = isManager
+        ? { manager_id: true }      // Manager sees team's bugs
+        : { assigned_to_me: true }; // Developer sees own bugs
+
       // Fetch each Kanban column separately based on status
       const [pendingResponse, devApprovedResponse, mgrApprovedResponse] = await Promise.all([
-        bugsAPI.getReleaseNotes({ status: 'ai_generated', assigned_to_me: true }),
-        bugsAPI.getReleaseNotes({ status: 'dev_approved', assigned_to_me: true }),
-        bugsAPI.getReleaseNotes({ status: 'mgr_approved', assigned_to_me: true })
+        bugsAPI.getReleaseNotes({ status: 'ai_generated', ...filterParams }),
+        bugsAPI.getReleaseNotes({ status: 'dev_approved', ...filterParams }),
+        bugsAPI.getReleaseNotes({ status: 'mgr_approved', ...filterParams })
       ]);
 
       console.log('[MyBugs] Kanban refresh - Column 1 (AI Generated):', pendingResponse.release_notes.length, 'bugs');
@@ -272,7 +287,10 @@ const MyBugs = () => {
         <div className="header-left">
           <h1>ReleaseNotegenerator</h1>
           <p className="page-subtitle">
-            Manage and track your assigned bugs. Generate release notes with AI assistance.
+            {user?.role === 'manager'
+              ? 'Review and approve release notes from your team members.'
+              : 'Manage and track your assigned bugs. Generate release notes with AI assistance.'
+            }
           </p>
         </div>
         <div className="header-right">
