@@ -7,6 +7,7 @@ import {
   fetchBugs,
   setSelectedBug,
   clearSelectedBug,
+  clearBugs,
   setSearchFilter,
   setStatusFilter,
   setReleaseFilter,
@@ -28,7 +29,7 @@ const MyBugs = () => {
 
   // Individual column loading states
   const [columnLoading, setColumnLoading] = useState({
-    pending: false,
+    ai_generated: false,
     dev_approved: false,
     mgr_approved: false
   });
@@ -38,22 +39,23 @@ const MyBugs = () => {
     const fetchBugsFromAPI = async () => {
       setApiLoading(true);
       setApiError('');
-      setColumnLoading({ pending: true, dev_approved: true, mgr_approved: true });
+      setColumnLoading({ ai_generated: true, dev_approved: true, mgr_approved: true });
 
       try {
         console.log('[MyBugs] Fetching Kanban columns from backend API for user:', user?.email);
-        console.log('[MyBugs] Column 1 (Pending) - Loading...');
+        console.log('[MyBugs] Column 1 (AI Generated) - Loading...');
         console.log('[MyBugs] Column 2 (Dev Approved) - Loading...');
         console.log('[MyBugs] Column 3 (Manager Approved) - Loading...');
 
         // Fetch each Kanban column separately based on status
+        // Only fetch bugs assigned to current user
         const [pendingResponse, devApprovedResponse, mgrApprovedResponse] = await Promise.all([
-          bugsAPI.getReleaseNotes({ status: 'pending' }),
-          bugsAPI.getReleaseNotes({ status: 'dev_approved' }),
-          bugsAPI.getReleaseNotes({ status: 'mgr_approved' })
+          bugsAPI.getReleaseNotes({ status: 'ai_generated', assigned_to_me: true }),
+          bugsAPI.getReleaseNotes({ status: 'dev_approved', assigned_to_me: true }),
+          bugsAPI.getReleaseNotes({ status: 'mgr_approved', assigned_to_me: true })
         ]);
 
-        console.log('[MyBugs] Column 1 (Pending) - Loaded:', pendingResponse.release_notes.length, 'bugs');
+        console.log('[MyBugs] Column 1 (AI Generated) - Loaded:', pendingResponse.release_notes.length, 'bugs');
         console.log('[MyBugs] Column 2 (Dev Approved) - Loaded:', devApprovedResponse.release_notes.length, 'bugs');
         console.log('[MyBugs] Column 3 (Manager Approved) - Loaded:', mgrApprovedResponse.release_notes.length, 'bugs');
 
@@ -102,7 +104,7 @@ const MyBugs = () => {
         return () => clearTimeout(errorTimeout);
       } finally {
         setApiLoading(false);
-        setColumnLoading({ pending: false, dev_approved: false, mgr_approved: false });
+        setColumnLoading({ ai_generated: false, dev_approved: false, mgr_approved: false });
       }
     };
 
@@ -157,9 +159,13 @@ const MyBugs = () => {
       localStorage.removeItem('userRole');
       localStorage.removeItem('userId');
 
-      // Dispatch logout action to Redux
+      // Dispatch logout action to Redux (clears auth state)
       console.log('[MyBugs] Dispatching logout action to Redux');
       dispatch(logout());
+
+      // Clear bugs data from Redux
+      console.log('[MyBugs] Clearing bugs data from Redux');
+      dispatch(clearBugs());
 
       // Redirect to login page
       console.log('[MyBugs] Redirecting to login page');
@@ -173,6 +179,7 @@ const MyBugs = () => {
       localStorage.removeItem('userRole');
       localStorage.removeItem('userId');
       dispatch(logout());
+      dispatch(clearBugs());
       navigate('/');
     } finally {
       setLogoutLoading(false);
@@ -190,16 +197,63 @@ const MyBugs = () => {
   };
 
   // Group bugs by Kanban columns
+  // Refresh Kanban board after approval
+  const handleRefreshKanban = async () => {
+    console.log('[MyBugs] Refreshing Kanban board after approval...');
+    setColumnLoading({ ai_generated: true, dev_approved: true, mgr_approved: true });
+
+    try {
+      // Fetch each Kanban column separately based on status
+      const [pendingResponse, devApprovedResponse, mgrApprovedResponse] = await Promise.all([
+        bugsAPI.getReleaseNotes({ status: 'ai_generated', assigned_to_me: true }),
+        bugsAPI.getReleaseNotes({ status: 'dev_approved', assigned_to_me: true }),
+        bugsAPI.getReleaseNotes({ status: 'mgr_approved', assigned_to_me: true })
+      ]);
+
+      console.log('[MyBugs] Kanban refresh - Column 1 (AI Generated):', pendingResponse.release_notes.length, 'bugs');
+      console.log('[MyBugs] Kanban refresh - Column 2 (Dev Approved):', devApprovedResponse.release_notes.length, 'bugs');
+      console.log('[MyBugs] Kanban refresh - Column 3 (Manager Approved):', mgrApprovedResponse.release_notes.length, 'bugs');
+
+      // Combine all bugs from all columns
+      const allBugs = [
+        ...pendingResponse.release_notes,
+        ...devApprovedResponse.release_notes,
+        ...mgrApprovedResponse.release_notes
+      ];
+
+      // Transform backend data to match frontend format
+      const transformedBugs = allBugs.map(note => ({
+        ...note,
+        generated_note: note.generated_note || null,
+      }));
+
+      console.log('[MyBugs] Kanban refresh - Total bugs:', transformedBugs.length);
+
+      // Dispatch to Redux store
+      dispatch(fetchBugs(transformedBugs));
+
+      // Close the modal after refresh
+      dispatch(clearSelectedBug());
+      console.log('[MyBugs] ✅ Kanban board refreshed successfully');
+    } catch (error) {
+      console.error('[MyBugs] ❌ Failed to refresh Kanban board:', error);
+      setApiError('Failed to refresh Kanban board');
+      setShowError(true);
+    } finally {
+      setColumnLoading({ ai_generated: false, dev_approved: false, mgr_approved: false });
+    }
+  };
+
   const getBugsByColumn = () => {
     const columns = {
-      pending: [],
+      ai_generated: [],
       dev_approved: [],
       approved: []
     };
 
     filteredBugs.forEach(bug => {
-      if (bug.status === 'pending') {
-        columns.pending.push(bug);
+      if (bug.status === 'ai_generated') {
+        columns.ai_generated.push(bug);
       } else if (bug.status === 'dev_approved') {
         columns.dev_approved.push(bug);
       } else if (bug.status === 'mgr_approved' || bug.status === 'approved') {
@@ -303,22 +357,22 @@ const MyBugs = () => {
 
         {/* Kanban Board */}
         <div className="kanban-board">
-          {/* Column 1: Raw AI Generated / Pending */}
+          {/* Column 1: Raw AI Generated */}
           <div className="kanban-column">
             <div className="column-header">
               <h3 className="column-title">
                 <span className="column-icon">🤖</span>
                 Raw AI Generated
               </h3>
-              <span className="column-count">{columnLoading.pending ? '⏳' : kanbanColumns.pending.length}</span>
+              <span className="column-count">{columnLoading.ai_generated ? '⏳' : kanbanColumns.ai_generated.length}</span>
             </div>
             <div className="column-content">
-              {columnLoading.pending ? (
+              {columnLoading.ai_generated ? (
                 <div className="empty-column-message">
-                  <p>Loading pending bugs...</p>
+                  <p>Loading AI generated bugs...</p>
                 </div>
-              ) : kanbanColumns.pending.length > 0 ? (
-                kanbanColumns.pending.map(bug => (
+              ) : kanbanColumns.ai_generated.length > 0 ? (
+                kanbanColumns.ai_generated.map(bug => (
                   <BugCard
                     key={bug.id}
                     bug={bug}
@@ -327,7 +381,7 @@ const MyBugs = () => {
                 ))
               ) : (
                 <div className="empty-column-message">
-                  <p>No pending bugs</p>
+                  <p>No AI generated bugs</p>
                 </div>
               )}
             </div>
@@ -399,6 +453,7 @@ const MyBugs = () => {
         <BugDetailModal
           bug={selectedBug}
           onClose={handleCloseModal}
+          onApprovalChange={handleRefreshKanban}
         />
       )}
     </div>

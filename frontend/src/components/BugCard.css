@@ -165,6 +165,18 @@
   word-break: break-word;
 }
 
+.field-value.severity-badge {
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: white;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  display: inline-block;
+  width: fit-content;
+}
+
 .bug-card-footer {
   display: flex;
   justify-content: center;

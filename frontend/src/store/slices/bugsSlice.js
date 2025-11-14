@@ -66,6 +66,16 @@ const bugsSlice = createSlice({
     clearSelectedBug: (state) => {
       state.selectedBug = null;
     },
+    clearBugs: (state) => {
+      state.bugs = [];
+      state.filteredBugs = [];
+      state.selectedBug = null;
+      state.filters = {
+        search: '',
+        status: 'all',
+        release: 'all',
+      };
+    },
     setSearchFilter: (state, action) => {
       state.filters.search = action.payload;
     },
@@ -136,6 +146,7 @@ const bugsSlice = createSlice({
 export const {
   setSelectedBug,
   clearSelectedBug,
+  clearBugs,
   setSearchFilter,
   setStatusFilter,
   setReleaseFilter,

@@ -328,6 +328,68 @@ export const releaseNotesAPI = {
       throw error;
     }
   },
+
+  // Get release note by bug ID (includes AI metadata and alternatives)
+  getReleaseNoteByBugId: async (bugId) => {
+    console.log('[API] Fetching release note for bug:', bugId);
+
+    try {
+      const response = await apiCall(`/release-notes/bug/${bugId}`, 'GET');
+      console.log('[API] Release note fetched successfully:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('[API] Failed to fetch release note:', error.message);
+      throw error;
+    }
+  },
+
+  // Generate release note for a bug
+  generateReleaseNote: async (bugId) => {
+    console.log('[API] Generating release note for bug:', bugId);
+
+    try {
+      const response = await apiCall('/release-notes/generate', 'POST', { bug_id: bugId });
+      console.log('[API] Release note generated successfully:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('[API] Failed to generate release note:', error.message);
+      throw error;
+    }
+  },
+
+  // Update release note (developer approval)
+  updateReleaseNote: async (releaseNoteId, content, status) => {
+    console.log('[API] Updating release note:', releaseNoteId, 'with status:', status);
+
+    try {
+      const response = await apiCall(`/release-notes/${releaseNoteId}`, 'PUT', {
+        content,
+        status
+      });
+      console.log('[API] Release note updated successfully:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('[API] Failed to update release note:', error.message);
+      throw error;
+    }
+  },
+
+  // Approve or reject release note (manager only)
+  approveReleaseNote: async (releaseNoteId, action, feedback = '') => {
+    console.log('[API] Approving/rejecting release note:', releaseNoteId, 'action:', action);
+
+    try {
+      const response = await apiCall(`/release-notes/${releaseNoteId}/approve`, 'POST', {
+        action,
+        feedback: feedback || undefined
+      });
+      console.log('[API] Release note approval processed:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('[API] Failed to process approval:', error.message);
+      throw error;
+    }
+  },
 };
 
 // Bugsby Sync API calls (Manager only)
